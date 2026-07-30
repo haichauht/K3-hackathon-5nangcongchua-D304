@@ -1,139 +1,471 @@
-# AI SPEC - VLearn Recall · Nhóm 5 nang cong chua · Zone TBD
+# AI SPEC — VLearn Recall · Nhóm 5 Nàng Công Chúa · Zone chưa xác nhận
 
-Hướng: [x] A - VLearn  [ ] B - Trợ lý Học viên  [ ] C - Làn mở  
-Loại: [ ] Tối ưu tính năng có sẵn  [x] Tính năng mới
+- Hướng: [x] A — VLearn  [ ] B — Trợ lý Học viên  [ ] C — Làn mở
+- Loại: [ ] Tối ưu tính năng có sẵn  [x] Tính năng mới
+- Mức prototype: [ ] Sketch  [ ] Mock  [x] Working local
 
-## Data Boundary
+Trạng thái tài liệu: khớp implementation và bằng chứng có trong repo tại ngày 2026-07-30.
 
-Nhóm áp dụng rule strict: **không đưa dữ liệu trong folder `data/` ra bất cứ folder ngoài nào khác**.
+> **Metadata còn thiếu:** repo chưa có tên Zone. Nhóm cần điền trước khi nộp; tài liệu này không tự đoán.
 
-Spec này không ghi raw transcript, raw chatlog, snippet thật, mã đoạn/mã turn thật hoặc safe index trích xuất từ `data/`. MVP được phép đọc `data/vlearn-pack` tại runtime; output cho người học chỉ hiện câu trả lời ngắn và đường dẫn tới trang slide. Survey người học được lưu riêng tại `validation/survey-recall-raw.csv`; spec chỉ dùng số tổng hợp từ `validation/survey-summary.md`.
+## Data Boundary & Source Policy
+
+### Nguồn được phép
+
+- Slide PDF và transcript bài giảng trong `data/vlearn-pack/` đều là nguồn trả lời hợp lệ.
+- Slide được ưu tiên nhẹ khi slide và transcript có mức phù hợp tương đương.
+- Transcript là một nguồn độc lập. Không ép transcript map sang slide nếu không có liên kết chắc chắn.
+- Chatlog tuyệt đối không được load vào retrieval index, answer context, source card hoặc OpenAI prompt. Chatlog chỉ được mining/eval tại local.
+
+### Dữ liệu được phép hiển thị
+
+- Mỗi source card chỉ có metadata chuẩn hóa và preview tối đa 220 ký tự.
+- Slide mở đúng PDF và page.
+- Transcript mở viewer nội bộ tới đúng `segment_id`; endpoint chỉ trả một segment đã giới hạn tối đa 1.800 ký tự, không trả toàn bộ file.
+- Không xuất raw chatlog, raw transcript dài, PII, email, số điện thoại hoặc mã có thể dùng để suy ngược danh tính.
+- Spec/eval không chứa answer, raw snippet hoặc source text dài; chỉ giữ aggregate, status và metadata kiểm thử.
+
+### Dữ liệu gửi tới OpenAI
+
+- Trong luồng hỏi đáp, OpenAI chỉ được gọi sau khi deterministic routing, retrieval và absolute relevance gate đã tìm được nguồn đủ hỗ trợ.
+- Mỗi grounded answer/action gửi tối đa 3 evidence block đã redacted; không gửi chatlog hoặc toàn bộ transcript.
+- Có một ngoại lệ kỹ thuật tách biệt với query flow: khi build/rebuild index, optional Slide Vision có thể gửi ảnh render của đúng một trang PDF ít text nhưng có hình/diagram/chart. Kết quả được cache; có thể tắt bằng `RAG_VISION_ENABLED=false`.
+- API key chỉ lấy từ biến môi trường/.env local và không được commit.
+- Không có key hoặc call lỗi: hệ thống chạy fallback chỉ diễn giải retrieved evidence. Không có evidence đủ hỗ trợ thì `NOT_FOUND`; không dùng answer hard-code theo chủ đề.
 
 ## §1. User & Job
 
-- **Job executor + workflow:** Học viên khóa AI Thực Chiến đang làm lab, ôn lại bài, chuẩn bị bài tập/báo cáo/quiz hoặc quay lại một khái niệm đã nghe trong lớp nhưng chỉ nhớ mơ hồ.
-- **Workflow hiện tại:**
-  1. Nhớ một mảnh nội dung, ví dụ "hình như thầy có nói phần này".
-  2. Tự lục slide trên VLearn, tìm link tài liệu ngoài, hỏi bạn/TA, hỏi ChatGPT hoặc xem ghi chú cá nhân.
-  3. Nếu slide không có đủ phần giảng miệng hoặc không nhớ đúng từ khóa, việc tìm lại bị kéo dài.
-  4. Nếu câu trả lời không có nguồn để mở lại, học viên vẫn phải tự kiểm chứng.
-- **Core JTBD:** Khi tôi chỉ nhớ mang máng một nội dung đã học, tôi muốn tìm lại đúng trang nguồn liên quan nhanh, để có thể ôn lại và tiếp tục làm bài mà không học sai hoặc mất nhiều thời gian.
-- **Problem statement:** Học viên chỉ nhớ một phần nội dung đã học nhưng không biết nó nằm ở buổi học hoặc trang slide nào; việc tự tìm lại mất thời gian, làm gián đoạn học/lab và khiến họ không chắc kiến thức tìm được có đúng với lời giảng viên không.
-- **Evidence khảo sát:** `validation/survey-summary.md` tổng hợp 20 phản hồi.
-  - 20/20 người trả lời đang tham gia khóa; 19/20 đã tham gia 4-5 buổi.
-  - 18/20 từng muốn tìm lại nội dung giảng viên nói nhưng không nhớ nằm ở buổi/slide/tài liệu nào; 13/20 gặp một vài lần.
-  - 13 lượt chọn "tìm trong slide trên VLearn", 9 hỏi bạn bè, 8 tìm slide/link bên ngoài, 6 hỏi ChatGPT hoặc công cụ AI khác.
-  - Tác động lớn nhất: 13 mất thời gian tìm kiếm, 9 không hiểu tiếp được phần đang học, 8 bị gián đoạn học/lab, 6 không chắc kiến thức có đúng với lời giảng viên.
-  - Khó khăn chính: 7 chọn "slide không chứa đầy đủ phần giảng miệng", 7 chọn "không nhớ từ khóa chính xác".
-  - 19/20 có chấm mức hữu ích; cả 19 đều chấm 4-5, điểm trung bình 4.53/5. 13/20 sẵn sàng thử nếu tích hợp trên VLearn, 7/20 có thể thử tùy cách hoạt động.
-- **Evidence data pack:** `data/vlearn-pack/README.md` cho biết pack có 2 slide PDF, 6 transcript sạch và 2,522 dòng chatlog đã ẩn danh. `data/vlearn-pack/chatlog/DATA_DICTIONARY.md` ghi 1,261 message pair, 369 user, 585 hội thoại; 46.2% tutor turn có citations rỗng, cho thấy nhu cầu grounding/nguồn mở lại là có thật. `eval/mining-notes.md` ghi phương pháp mining tại chỗ và luật không copy raw data.
+### Job executor và workflow hiện tại
+
+**Job executor:** học viên khóa AI Thực Chiến đang làm lab, chuẩn bị bài tập/báo cáo/quiz hoặc ôn lại bài nhưng chỉ nhớ một mảnh nội dung từng nghe.
+
+Workflow hiện tại:
+
+1. Học viên nhớ một ý như “hình như thầy có nói phần này”.
+2. Họ tự lục slide trên VLearn, tìm tài liệu ngoài, xem ghi chú, hỏi bạn/TA hoặc hỏi một chatbot chung.
+3. Nếu không nhớ đúng từ khóa hoặc ý chỉ có trong phần giảng miệng, quá trình tìm kéo dài.
+4. Nếu câu trả lời không có nguồn mở lại được, học viên vẫn phải tự kiểm chứng và có thể học sai.
+
+### JTBD
+
+**Core JTBD:** Khi tôi chỉ nhớ mang máng một nội dung đã học, tôi muốn tìm lại đúng nguồn liên quan nhanh để có thể ôn lại, tự kiểm chứng và tiếp tục làm bài mà không mất mạch học.
+
+Job stories:
+
+- Khi đang làm lab và nhớ giảng viên từng nói về lỗi tương tự, tôi muốn tìm đúng đoạn bài giảng để tiếp tục xử lý.
+- Khi chuẩn bị bài tập/báo cáo, tôi muốn kiểm tra một khái niệm có đúng với nội dung khóa học trước khi dùng.
+- Khi ôn lại bài, tôi muốn gom các nguồn liên quan nhưng vẫn biết từng ý đến từ đâu.
+
+**Problem statement:** Học viên chỉ nhớ một phần nội dung đã học nhưng không biết nó nằm ở buổi học, trang slide hay đoạn giảng nào; việc tự tìm lại mất thời gian, làm gián đoạn học/lab và khiến họ không chắc kiến thức tìm được có đúng với lời giảng viên.
+
+### Evidence A — khảo sát 20 học viên ngoài nhóm
+
+Nguồn kiểm chứng:
+
+- Raw log toàn bộ câu hỏi và từng câu trả lời: `validation/survey-recall-raw.csv`.
+- Aggregate đã rà: `validation/survey-summary.md`.
+- Khảo sát không thu tên/email; các quote dưới đây ngắn và không chứa PII.
+- Nhóm khai đây là 20 người ngoài nhóm. Vì raw log đã ẩn danh và không có mã người trả lời, repo không tự chứng minh được danh tính/độ duy nhất; trước khi chấm cần giữ danh sách xác nhận riêng hoặc dùng validation log có tên để đối chiếu.
+
+Kết quả:
+
+- 20/20 đang tham gia khóa; 19/20 đã học 4–5 buổi.
+- 18/20 (90%) từng muốn tìm lại nội dung giảng viên nói nhưng không nhớ nằm ở đâu; 13/20 gặp “một vài lần”, 5/20 gặp một lần.
+- 13 lượt chọn tìm trong slide VLearn; 9 hỏi bạn; 8 tìm slide/link ngoài; 6 hỏi ChatGPT hoặc công cụ khác.
+- Hậu quả: 13 mất thời gian, 9 không hiểu tiếp được phần đang học, 8 bị gián đoạn học/lab, 6 không chắc kiến thức có đúng lời giảng viên, 4 có nguy cơ làm sai bài tập.
+- Khó khăn nổi bật: 7 nói slide thiếu phần giảng miệng; 7 không nhớ từ khóa chính xác.
+- 19/20 có chấm mức hữu ích; cả 19 chấm 4–5, trung bình 4,53/5.
+- 13/20 sẵn sàng thử nếu tích hợp trên VLearn; 7/20 “có thể thử tùy cách hoạt động”; 0 từ chối.
+
+Ví dụ nguyên văn ngắn từ câu hỏi “lần gần nhất bạn muốn tìm lại nội dung gì?”:
+
+1. “Mình muốn tìm thông tin về code cho ReAct”
+2. “rules base bot, reAct”
+3. “Muốn tìm về nội dung prompt engineering”
+4. “các thành phần của system prompt”
+5. “Tui tìm slide về product”
+6. “hallucination”
+7. “Cách set up tools”
+
+Kết luận evidence A: pain được xác nhận bởi 90% mẫu khảo sát, cao hơn ngưỡng 50% của rubric.
+
+### Evidence mining — bằng chứng bổ trợ, không claim chuẩn B đầy đủ
+
+- Data pack có 2 PDF, 6 transcript sạch và chatlog ẩn danh.
+- `DATA_DICTIONARY.md` ghi 1.261 message pair, 369 user và 585 conversation.
+- Aggregate local cho thấy 46,2% tutor turn có citations rỗng, củng cố rủi ro “answer có vẻ đúng nhưng không mở lại được nguồn”.
+- `eval/mining-notes.md` ghi phương pháp đếm và data boundary.
+- Vì policy hiện tại không cho đưa ≥5 quote chatlog nguyên văn ra ngoài `data/`, phần mining này **không tự nhận đạt chuẩn B**. Spec dựa chính vào Evidence A.
 
 ## §2. Impact & Quyết Định Chọn
 
-| Ứng viên | Bằng chứng & quy mô | Tốn gì mỗi lần | Khả thi | Quyết định |
-|---|---|---|---|---|
-| VLearn Recall - tìm lại đúng trang slide | 18/20 người khảo sát từng gặp; 13 mất thời gian; 8 bị gián đoạn học/lab; 15 nói sẽ dùng khi đang làm lab và nhớ giảng viên từng nói về lỗi đang gặp | Mất thời gian, đứt mạch học, không chắc nguồn, có nguy cơ học sai | Cao: build được bằng viewer + Python backend + OpenAI + data pack tại runtime | **Chọn** |
-| Tối ưu toàn bộ AI tutor hiện tại để luôn trả lời có citation | Chatlog có 46.2% tutor turn citations rỗng; pain liên quan niềm tin xuất hiện ở 6/20 survey | Giảm niềm tin vào tutor, vẫn phải tự kiểm | Vừa: đụng toàn bộ hành vi tutor, blast radius lớn hơn 1 lát cắt recall | Loại tạm |
-| Bản tin câu hỏi tồn cho TA | 5/20 bị ảnh hưởng vì phải chờ bạn bè/TA; 3 từng hỏi TA/giảng viên để tìm lại | TA xử lý lặp, học viên chờ | Vừa: user chính chuyển sang TA, không trực tiếp giải job của học viên | Loại |
-| Quiz/kiểm tra hiểu bài tự động | 8/20 sẽ dùng khi chuẩn bị kiểm tra/demo; 4/20 nêu nguy cơ làm sai bài tập | Nếu sai câu hỏi/đáp án có thể làm học viên học sai | Cao nhưng cost-of-error lớn hơn; phù hợp bước phụ sau khi đã tìm đúng nguồn | Backlog |
+| Ứng viên | Bao nhiêu người/signal | Tần suất đã đo | Tốn gì mỗi lần | Khả thi trong sự kiện | Quyết định |
+|---|---|---|---|---|---|
+| **VLearn Recall — tìm lại đúng nguồn** | 18/20 từng gặp; 13 mất thời gian; 8 đứt mạch học; 6 không chắc kiến thức | 13/20 gặp vài lần, 5/20 gặp một lần | Thời gian tìm, gián đoạn lab, nguy cơ học/làm bài sai | Cao: data pack có slide + transcript; viewer và retrieval chạy local | **Chọn** |
+| Nâng toàn bộ tutor để mọi answer có citation | 46,2% tutor turn trong aggregate có citation rỗng; 6/20 nêu vấn đề không chắc nguồn | Theo từng tutor turn; survey chưa đo số lần/user | Mất niềm tin, vẫn phải tự kiểm | Vừa: blast radius toàn tutor, khó chốt trong một lát cắt | Loại tạm |
+| Bản tin câu hỏi tồn cho TA | 5/20 bị ảnh hưởng vì phải chờ; 9 từng hỏi bạn và 3 từng hỏi TA | Survey chưa đo số lần/ngày | Học viên chờ; TA xử lý lặp | Vừa: đổi job executor sang TA, không giải trực tiếp recall | Loại |
+| Quiz/self-check tự động đầy đủ đáp án | 8/20 có thể dùng khi chuẩn bị kiểm tra/demo; 4/20 lo làm sai bài | Survey chưa đo số lần | Câu/đáp án sai làm người học học sai | Cao về kỹ thuật nhưng cost-of-error cao | Chỉ giữ self-check không lộ đáp án; quiz đầy đủ vào backlog |
+
+**Quyết định:** chọn VLearn Recall vì pain có tỷ lệ xác nhận 18/20, có tần suất lặp, hậu quả trực tiếp và data/source để build end-to-end. Lát cắt tránh sửa toàn tutor và tránh tự động hóa đáp án có cost-of-error cao.
 
 ## §3. Giải Pháp Tương Tự Đã Nghiên Cứu
 
-| Sản phẩm/flow tham chiếu | Đáng học | Đáng né | VLearn Recall khác gì |
+| Sản phẩm/flow tham chiếu | Flow đáng học | Điều đáng né | VLearn Recall khác gì |
 |---|---|---|---|
-| Source-grounded QA | Gắn câu trả lời với nguồn để user tự kiểm | Dễ thành chat dài nếu output quá nhiều nguồn | Chỉ trả tóm tắt ngắn + tối đa 3 trang slide có thể mở ngay |
-| Study/tutor chatbot | Có thể hỏi lại và giải thích theo ngữ cảnh học | Nếu không grounding, câu trả lời có vẻ đúng nhưng không biết mở lại ở đâu | Recall trước, giải thích sau; trạng thái rõ `FOUND / CLARIFY / NOT_FOUND` |
-| Search trong PDF/browser | Nhanh khi nhớ đúng từ khóa | Fail khi user nhớ mơ hồ hoặc slide thiếu phần giảng miệng | AI rewrite câu hỏi mơ hồ, dùng transcript/chatlog làm bằng chứng nội bộ, nhưng dẫn người học về slide |
-| VLearn tutor hiện tại | Nằm đúng nơi học viên đang đọc tài liệu | Chatlog cho thấy citation không luôn có; user khó quay lại nguồn nếu chỉ hỏi chat | Bổ sung panel VLearn Recall bên cạnh slide viewer thật |
+| NotebookLM/source-grounded QA | Answer gắn với nguồn để người dùng kiểm tra | Dễ trả nhiều trích dẫn nhưng không dẫn tới đúng trải nghiệm VLearn | Mỗi source là card mở trực tiếp đúng PDF/page hoặc transcript segment |
+| ChatGPT Study Mode/tutor chatbot | Hỏi tiếp, giải thích và tạo câu tự kiểm tra tự nhiên | Có thể dùng kiến thức rộng ngoài khóa học nếu không khóa nguồn | Retrieval khóa vào data pack; không đủ nguồn thì `NOT_FOUND` |
+| PDF/browser search | Nhanh khi nhớ đúng từ khóa | Fail khi nhớ mơ hồ hoặc ý nằm trong phần giảng miệng | Hybrid search trên slide + transcript và absolute relevance gate |
+| VLearn tutor hiện tại | Nằm ngay trong trang học và quen thuộc với học viên | Citation không luôn có; user khó quay lại đúng nguồn | Recall-first: tìm nguồn trước, diễn giải sau, tối đa 3 card mở được |
+
+Quyết định thiết kế rút ra:
+
+- “Tin đúng mức” quan trọng hơn “answer nghe hay”.
+- Nguồn và open action là output chính; answer chỉ là lớp diễn giải.
+- Failure phải có trạng thái rõ, không biến top-1 tương đối thành bằng chứng.
 
 ## §4. Thiết Kế
 
-- **Lát cắt một câu:** Một học viên đang ôn/làm lab nhập câu nhớ mang máng; AI quyết định `FOUND / CLARIFY / NOT_FOUND`; nếu `FOUND` thì trả câu trả lời ngắn kèm tối đa 3 nút mở trang slide trong VLearn viewer; học viên nhảy tới đúng trang để tự kiểm và ôn lại.
-- **Non-goals:**
-  1. Không build tutor thay thế toàn bộ VLearn.
-  2. Không hiển thị transcript/chatlog như nguồn cho người học; hai nguồn này chỉ dùng nội bộ để hỗ trợ grounding/retrieval.
-  3. Không xuất raw chatlog, raw transcript, PII, mã định danh hoặc dữ liệu có thể suy ngược danh tính.
-  4. Không trả lời logistics/deadline/link nộp nếu không có nguồn chính thức trong bài học.
-  5. Không cho đáp án quiz, làm hộ bài nộp hoặc tự sinh kiến thức mới khi không tìm được nguồn.
-- **Mức MVP:** [x] Working. `codebase/index.html` mô phỏng giao diện học VLearn với sidebar Day01/Day02 từ PDF thật, slide viewer render từng trang PDF thật, và chat panel VLearn Recall. `codebase/server.py` là backend Python đọc `data/vlearn-pack` tại runtime, gọi OpenAI khi có `OPENAI_API_KEY`, search slide page + evidence nội bộ, và trả payload public chỉ gồm answer, confidence, source map slide, file/page/url. Phần chưa phải production: chưa tích hợp auth/session thật của VLearn, chưa deploy, chưa có vector database riêng.
-- **Automation:** Conditional. AI tự trả lời khi có slide đủ chắc; hỏi lại khi input quá mơ hồ; từ chối khi ngoài phạm vi, đòi dữ liệu bị hạn chế hoặc câu trả lời có nguy cơ bịa. Lý do: sai nguồn/sai kiến thức có thể làm học viên học sai hoặc làm bài sai, nên hệ thống phải ưu tiên dẫn về nguồn mở được thay vì trả lời chắc quá mức.
+### Lát cắt một câu
 
-### §4b. Nguyên Tắc Áp Dụng
+**Một học viên đang làm lab/ôn bài nhập câu nhớ mang máng; hệ thống quyết định nguồn slide/transcript nào đủ hỗ trợ tuyệt đối; nếu đủ, AI diễn giải evidence với citation và tối đa 3 nút mở đúng nguồn để học viên kiểm chứng và tiếp tục học.**
 
-| Nguyên tắc | Áp cụ thể vào MVP |
+Format kiểm tra: 1 user — học viên; 1 việc — tìm lại nội dung; 1 quyết định — có nguồn đủ hỗ trợ hay không; 1 kết quả — answer grounded + nguồn mở đúng vị trí hoặc failure rõ.
+
+### Trạng thái sản phẩm
+
+| Status | Điều kiện | UI bắt buộc |
+|---|---|---|
+| `FOUND` | Có ít nhất một nguồn vượt absolute relevance gate | Answer grounded, confidence, tối đa 3 source card, mỗi card có open action riêng và các learning action |
+| `CLARIFY` | Input quá ngắn, rác, chỉ trỏ “cái này/phần đó” hoặc phụ thuộc selected context UI chưa có | Một câu hỏi làm rõ ngắn; không hiển thị nguồn đoán |
+| `NOT_FOUND` | Không có nguồn đủ hỗ trợ, query ngoài domain hoặc yêu cầu bị cấm | Nêu không có căn cứ/không được phép; không answer, citation hoặc source card giả |
+
+### Functional requirements
+
+| ID | Requirement | Acceptance |
+|---|---|---|
+| FR-01 | Deterministic routing | Routing không gọi OpenAI; phân loại rõ candidate/clarify/restricted/out-of-scope |
+| FR-02 | Absolute relevance | Top-1 tương đối không đủ để `FOUND`; query ngoài domain phải `NOT_FOUND` |
+| FR-03 | Hybrid retrieval | Search slide + transcript bằng lexical và local TF-IDF; chatlog không được load |
+| FR-04 | Source preference | Khi relevance tương đương, slide xếp trước; transcript vẫn giữ độc lập nếu không map chắc sang slide |
+| FR-05 | Source contract | Tối đa 3 source, đủ metadata, preview ngắn, relevance và open action |
+| FR-06 | Grounded answer | OpenAI/fallback chỉ dùng retrieved evidence; mỗi claim phải trace được về citation |
+| FR-07 | Exact navigation | Slide mở đúng PDF/page; transcript mở đúng `segment_id` trong viewer nội bộ |
+| FR-08 | Summarize | Tóm tắt đúng source được chọn: “Ý chính” + đúng 3 điều cần nhớ + citation |
+| FR-09 | Synthesize | Dùng tối đa 3 source, bỏ ý trùng, mỗi ý giữ citation của nguồn hỗ trợ |
+| FR-10 | Self-check | Tạo 1–3 câu hỏi chỉ từ source vừa xem; không lộ đáp án/gợi ý/lời giải |
+| FR-11 | Honest runtime mode | `answer_source`/health phải phản ánh `openai`, `fallback` hoặc fallback-after-error/contract thật |
+| FR-12 | Selected text | UI hiện không claim hỗ trợ selected text; input phụ thuộc highlight phải `CLARIFY` |
+
+### Public source contract
+
+```json
+{
+  "source_type": "slide | transcript",
+  "document_title": "string",
+  "lesson_title": "string",
+  "page": 12,
+  "segment_id": null,
+  "preview": "tối đa 220 ký tự",
+  "relevance_score": 72,
+  "open_action": {
+    "type": "open_slide | open_transcript"
+  }
+}
+```
+
+Quy tắc:
+
+- Slide có `page`, transcript có `segment_id`; không ép một source phải có cả hai.
+- Citation slide: `[[file.pdf#page=N]]`.
+- Citation transcript: `[Txx-NNN]`.
+- Source card không chứa raw context nội bộ.
+
+### Luồng xử lý
+
+1. Nhận input và history/source selection tối thiểu.
+2. Guardrail/router deterministic xử lý restricted, out-of-scope và ambiguity.
+3. Hybrid retrieval chạy trên slide + transcript.
+4. Absolute relevance gate kiểm token support/coverage và lexical-semantic evidence.
+5. Rank tối đa 3 nguồn; slide có bonus nhỏ chỉ khi relevance gần tương đương.
+6. Nếu không có nguồn đủ hỗ trợ: `NOT_FOUND`.
+7. Nếu có nguồn:
+   - Có OpenAI: tạo grounded answer/action từ tối đa 3 evidence block.
+   - Không có/lỗi/vi phạm output contract: dùng fallback từ chính evidence và ghi đúng mode.
+8. UI render source cards; open action resolve riêng từng nguồn.
+
+### API contract
+
+| Endpoint | Vai trò |
 |---|---|
-| G1 - Làm rõ hệ thống làm được gì | Lời chào trong chat nói chatbot tìm trong nguồn bài học thật và dẫn tới đúng trang slide để mở lại. |
-| G2 - Làm rõ nó làm tốt đến đâu | `FOUND` hiển thị confidence và top trang slide; `CLARIFY`/`NOT_FOUND` nói rõ giới hạn thay vì trả lời lấp lửng. |
-| G10 - Thu hẹp phạm vi khi nghi ngờ | Input kiểu "cái này", "phần đó", hoặc rác ngắn vào `CLARIFY` và hỏi thêm từ khóa/chủ đề. |
-| G11 - Giải thích vì sao | Mỗi source map public chỉ ra trang slide nào liên quan và lý do khớp ở mức ngắn. |
-| PAIR - Trust đúng mức | User có nút `Mở slide trang N` để tự kiểm trên slide thật; không bị buộc tin câu trả lời của AI. |
-| PAIR - Graceful failure | Raw data/PII/out-of-scope/đáp án kiểm tra vào `NOT_FOUND` với gợi ý hỏi lại hợp lệ. |
+| `GET /api/health` | Health, AI mode/model, data/index status |
+| `GET /api/library` | Catalog slide và trạng thái chatlog runtime |
+| `GET /api/slide-page?file=...&page=N` | Render đúng một trang PDF |
+| `GET /api/transcript-segment?segment_id=...` | Trả đúng một segment đã giới hạn |
+| `POST /api/recall-intent` | Deterministic intent/router result |
+| `POST /api/recall-search` | Search, answer và action end-to-end |
 
-## §5. Kiểu Lỗi - 4 Lớp Chỗ Khó
+### Non-goals
+
+1. Không thay thế toàn bộ AI tutor/VLearn.
+2. Không dùng chatlog làm nguồn trả lời.
+3. Không xuất raw data, PII hoặc toàn bộ transcript.
+4. Không trả logistics/deadline/link nộp nếu không có nguồn chính thức.
+5. Không cung cấp đáp án quiz hoặc làm hộ bài nộp.
+6. Không hỗ trợ selected-text trên slide viewer cho đến khi có text layer thật.
+7. Không deploy, không tích hợp auth/session VLearn production trong MVP.
+8. Không xây vector database/network embedding riêng; current retrieval dùng local sparse TF-IDF.
+
+### Mức prototype và phần thật/mock
+
+| Thành phần | Trạng thái thật |
+|---|---|
+| UI VLearn local + chat panel | Working local |
+| PDF viewer/page navigation | Working |
+| Transcript segment viewer | Working |
+| Runtime slide/transcript index | Working |
+| Absolute relevance + source ranking | Working |
+| Fallback grounded answer/actions | Working |
+| OpenAI grounded answer | Working và đã có live eval |
+| OpenAI action output normalization sau lỗi eval | Code + local unit test đã có; full live rerun đang pending |
+| Auth/session/deploy VLearn | Chưa làm |
+| Selected-text layer | Chưa làm; UI không claim |
+
+### Automation
+
+**Mức chọn: Conditional.**
+
+- Case có nguồn đủ chắc: hệ thống tự search và trả answer grounded.
+- Case mơ hồ: hỏi lại.
+- Case không có nguồn/ngoài phạm vi: từ chối an toàn.
+- User luôn có thể mở source để kiểm tra.
+
+Lý do theo cost-of-error: answer sai có thể làm học viên học sai hoặc làm bài sai; correction sau đó đắt hơn vài giây mở nguồn. Vì vậy hệ thống chỉ automate khi evidence vượt gate và giữ quyền kiểm chứng cho người học.
+
+### §4b. Nguyên tắc HAX/PAIR
+
+| Nguyên tắc | Áp cụ thể trong prototype |
+|---|---|
+| G1 — Làm rõ hệ thống làm được gì | Lời chào và trạng thái health nói hệ thống tìm trong nguồn khóa học; UI hiển thị fallback/OpenAI mode |
+| G2 — Làm rõ nó làm tốt đến đâu | `FOUND` có confidence/relevance/source; `CLARIFY` và `NOT_FOUND` nêu giới hạn thay vì đoán |
+| G8 — Gạt bỏ dễ dàng | Source/answer không chặn slide viewer; học viên có thể bỏ qua chatbot và tiếp tục xem tài liệu |
+| G9 — Sửa dễ dàng | Sau `CLARIFY`, user nhập thêm chủ đề ngay trong cùng chat; source card có action riêng thay vì bắt chạy lại toàn flow |
+| G10 — Thu hẹp khi nghi ngờ | Input “cái này/asds/phần đó” không search bừa; hệ thống hỏi lại |
+| G11 — Giải thích vì sao | Source card có preview, relevance, reason và citation; open action đưa tới bằng chứng |
+| PAIR — Explainability + Trust | Answer là lớp diễn giải; nguồn mở được mới là căn cứ để user tự quyết mức tin |
+| PAIR — Errors + Graceful Failure | Tách `CLARIFY` khỏi `NOT_FOUND`; API/network lỗi chuyển fallback có nhãn thật |
+| PAIR — Feedback + Control | Các action tóm tắt/tổng hợp/self-check chỉ chạy trên source user vừa chọn/xem |
+
+## §5. Kiểu Lỗi — 4 Lớp Chỗ Khó
 
 | # | Tình huống cụ thể | Lớp | Hành vi mong muốn | Nguyên tắc |
 |---|---|---|---|---|
-| 1 | User hỏi chủ đề học tập đủ rõ, ví dụ nhớ về AI Agent/use case | ① nguồn sự thật | `FOUND`, trả câu trả lời ngắn và tối đa 3 trang slide mở được | G2/G11 |
-| 2 | User hỏi kiểu "hình như thầy có nói phần AI Agent ở đâu ta" | ① nguồn sự thật + ② mơ hồ nhẹ | Nếu có keyword học tập đủ rõ thì vẫn tìm và dẫn trang slide; không trả lời bằng tên transcript/chatlog | G10/G11 |
-| 3 | User hỏi slide/trang không tồn tại, ví dụ trang 999 | ① nguồn sự thật | `NOT_FOUND`, không đoán nội dung trang | G2 |
-| 4 | User gõ "cái này là gì" nhưng không có selected text/context | ② mơ hồ | `CLARIFY`, hỏi thêm chủ đề hoặc đoạn cần tìm | G10 |
-| 5 | User gõ rác/quá ngắn | ② mơ hồ | `CLARIFY`, không search bừa | G10 |
-| 6 | User đòi raw chatlog/transcript hoặc toàn bộ file | ③ ngoài phạm vi | `NOT_FOUND`, nêu luật không xuất raw data | PAIR safety |
-| 7 | User hỏi danh tính/email/user_id thật | ③ ngoài phạm vi | Từ chối, không suy ngược danh tính | PAIR safety |
-| 8 | User đòi đáp án quiz/làm hộ bài nộp | ③ ngoài phạm vi | Từ chối làm hộ; có thể gợi ý mở nguồn học để tự làm | PAIR safety |
-| 9 | User hỏi deadline/link nộp/phòng học | ① không có nguồn + ④ hậu quả thật | `NOT_FOUND`, yêu cầu kiểm kênh chính thức, không bịa logistics | G2/PAIR |
-| 10 | User hỏi kiến thức dễ học sai như ROI, MVP vs PoC, khi nào dùng AI Agent | ④ domain | Chỉ trả khi có slide phù hợp; câu trả lời phải có nút mở nguồn | G2/G11 |
+| 1 | Query ngoài khóa học vẫn có top-1 tương đối | ① Nguồn sự thật | Absolute gate trả `NOT_FOUND`; không hiển thị nguồn gần nhất cho đủ card | G2/G10 |
+| 2 | Answer đúng chung chung nhưng citation không hỗ trợ claim | ① Nguồn sự thật | Không coi là pass; fallback/repair từ retrieved evidence hoặc `NOT_FOUND` | G11/PAIR Trust |
+| 3 | Transcript liên quan nhưng không có liên kết chắc với slide | ① Nguồn sự thật | Giữ transcript là source riêng; không bịa page mapping | G11 |
+| 4 | “cái này là gì?”, “phần đó” không có context | ② Mơ hồ | `CLARIFY`, hỏi chủ đề/đoạn cần tìm | G10 |
+| 5 | User nói “đoạn bôi đen” nhưng UI chưa có text layer | ② Mơ hồ | `CLARIFY`; không claim đã nhận selected text | G1/G10 |
+| 6 | Input rác/quá ngắn như `asds` | ② Mơ hồ | `CLARIFY`, không chạy retrieval bừa | G10 |
+| 7 | User đòi toàn bộ chatlog/email/user_id | ③ Ngoài phạm vi | `NOT_FOUND`, không load/trả dữ liệu, gợi ý hỏi nội dung bài học | PAIR Safety |
+| 8 | User yêu cầu dán toàn bộ transcript | ③ Ngoài phạm vi | Từ chối raw file; chỉ cho preview và viewer đúng segment nếu có query hợp lệ | PAIR Safety |
+| 9 | User xin đáp án quiz/làm hộ bài nộp | ③ Ngoài phạm vi | Từ chối đáp án; có thể dẫn tới nguồn để tự học | G2/PAIR Safety |
+| 10 | ROI/MVP/AI Agent được trả bằng kiến thức hard-code | ④ Domain | Chỉ trả khi retrieved source hỗ trợ; mỗi claim có citation; không có thì `NOT_FOUND` | G2/G11 |
+| 11 | Self-check vô tình tóm tắt hoặc lộ đáp án trước câu hỏi | ④ Domain | Chỉ hiện 1–3 câu hỏi có citation; không intro giải thích/đáp án | G2/PAIR Trust |
+| 12 | Deadline/link/phòng học bị đoán từ kiến thức ngoài nguồn | ④ Domain | `NOT_FOUND`, yêu cầu xem kênh chính thức | G2/PAIR Failure |
+
+Các case đáng sợ nhất khi demo: #1 false `FOUND`, #2 answer đúng nhưng citation sai và #11 self-check lộ đáp án.
 
 ## §6. Bốn Đường Đi Của Trải Nghiệm
 
-- **Happy path:** User hỏi chủ đề đủ rõ; backend gọi OpenAI để phân loại/rewrite, search slide page trong `data/vlearn-pack/slides` và evidence nội bộ trong transcript/chatlog; UI trả `FOUND`, câu trả lời ngắn, tối đa 3 nút `Mở slide trang N`; user bấm để viewer nhảy tới đúng trang.
-- **Low-confidence / mơ hồ:** User gõ `asds`, "cái này", "phần đó" mà không có context; hệ thống `CLARIFY` và hỏi thêm chủ đề/từ khóa/slide.
-- **Failure / không căn cứ:** User hỏi chủ đề ngoài catalog hoặc trang không tồn tại; hệ thống `NOT_FOUND`, không bịa.
-- **Correction:** User bổ sung từ khóa sau `CLARIFY`; hệ thống chạy lại intent/search và chuyển sang `FOUND` nếu có trang slide đủ chắc.
-- **Ngoài phạm vi:** User đòi email, danh tính, raw chatlog/transcript, đáp án quiz hoặc logistics không có nguồn; hệ thống từ chối an toàn.
-- **Case đặc thù domain:** Với nội dung có thể ảnh hưởng điểm/lab/bài nộp, output phải gắn với trang slide mở được; không có nguồn thì không trả lời chắc.
+### Happy path
+
+User hỏi “Thầy có nói use case với AI Agent ở đâu ấy.” → router xác định đủ chủ đề → retrieval tìm slide/transcript → absolute gate pass → grounded answer + tối đa 3 source card → user mở đúng page/segment → chọn summarize/synthesize/self-check.
+
+### Low-confidence / mơ hồ
+
+User nhập `asds`, “cái này” hoặc “đoạn bôi đen” nhưng không có selected text → `CLARIFY` → UI hỏi lại một câu ngắn và không hiển thị nguồn đoán.
+
+### Failure / không căn cứ
+
+User hỏi nội dung ngoài catalog hoặc top-1 không có support tuyệt đối → `NOT_FOUND` → không answer/citation/source card giả.
+
+### Correction
+
+Sau `CLARIFY`, user bổ sung “phần AI Agent trong workflow” → hệ thống chạy lại deterministic routing + retrieval → chuyển `FOUND` nếu source vượt gate.
+
+### Ngoài phạm vi
+
+User đòi raw chatlog/transcript, PII, đáp án quiz hoặc làm hộ → guardrail trả `NOT_FOUND` an toàn và gợi ý quay về nội dung học hợp lệ.
+
+### Case đặc thù domain
+
+Với ROI, MVP/PoC, quick win hoặc AI Agent, answer không được dựa vào template/hard-code. Source không đủ support thì `NOT_FOUND`; source đủ thì mỗi claim có citation và open action.
+
+### Khi OpenAI không khả dụng
+
+Retrieval/navigation/status vẫn chạy. Fallback chỉ diễn giải source đã lấy được; health và `answer_source` phải ghi đúng fallback, không giả OpenAI.
 
 ## §7. Kiểm Thử
 
-| Chiều | Định nghĩa pass/fail |
-|---|---|
-| Grounding public | Case `FOUND` pass khi public result chỉ là slide, có `file`, `page`, `url` hợp lệ và nút mở đúng trang; không hiển thị transcript/chatlog cho người học. |
-| Không leak data | Case restricted pass khi không xuất raw data, PII, mã định danh, raw transcript/chatlog hoặc snippet dài. Điều kiện cứng: 0 lỗi. |
-| Status đúng | Expected `FOUND / CLARIFY / NOT_FOUND` phải khớp golden set. |
-| Clarify đúng lúc | Case mơ hồ phải hỏi lại bằng câu ngắn, không đoán chủ đề. |
-| Not-found đúng lúc | Case ngoài phạm vi/không có nguồn phải `NOT_FOUND`. |
-| Output vừa đủ | Tóm tắt ngắn, nêu giới hạn, không dán nội dung dài. |
-| Navigation | Nút mở nguồn đưa viewer tới đúng PDF/page; số trang trên viewer và chip "Trang slide" cập nhật theo click/scroll. |
+### Định nghĩa chất lượng có thể chấm lại
 
-- **Golden set:** `eval/golden-set.md` - 24 câu, phủ 4 nhóm tình huống rủi ro, mỗi nhóm 6 câu. 18/24 câu bắt nguồn từ quan sát thực tế/chatlog style/team self-use adjusted.
-- **Quality bar chốt:** đạt khi >=75% case pass và 0 restricted-data leak.
-- **Run 01:** `eval/run-01-results.md` - fallback local smoke 5/5 pass, phát hiện 2 PDF thật, mỗi PDF 29 trang, không leak.
-- **Run 02:** `eval/run-02-results.md` - mode `openai`, model `gpt-5`, 24/24 pass, pass rate 100.0%, restricted-data leak 0.
-- **AI trace:** `eval/ai-call-trace-template.md` ghi decision trung tâm và format trace không chứa API key/raw data.
+| Chiều | Pass khi | Fail khi |
+|---|---|---|
+| Status | Actual đúng expected `FOUND/CLARIFY/NOT_FOUND` | Sai status |
+| Absolute relevance | 6/6 outside-domain trả `NOT_FOUND` | Bất kỳ false `FOUND` |
+| Source contract | Mọi source đủ type/title/page-or-segment/preview/score/open action; số lượng ≤3 | Thiếu field, sai type hoặc >3 |
+| Answer grounding | Answer có citation hợp lệ và có token support quan sát được từ runtime evidence | Chỉ có source tồn tại nhưng không hỗ trợ answer |
+| Citation/navigation | Slide resolve đúng file/page; transcript resolve đúng segment và content ≤1.800 ký tự | Nút mở sai vị trí hoặc trả full transcript |
+| Source policy | Chatlog runtime `False`; source chỉ slide/transcript | Chatlog xuất hiện trong results/context |
+| Data safety | 0 raw-data/PII leak trong mọi case restricted | Chỉ một leak cũng fail hard condition |
+| Summarize | 1 source; “Ý chính”; đúng 3 điều cần nhớ; citation | Sai nguồn/cấu trúc/citation |
+| Synthesize | ≤3 source; ý không trùng rõ ràng; mỗi ý có citation hỗ trợ | Ý không căn cứ hoặc citation chung không map từng ý |
+| Self-check | 1–3 câu hỏi từ source vừa xem, có citation, không đáp án | Có intro tiết lộ nội dung/đáp án hoặc >3 câu |
+| Honest mode | OpenAI run chỉ pass `FOUND` khi `answer_source=openai` | Call rơi fallback nhưng vẫn ghi OpenAI |
+
+`answer_grounding` hiện là automatic heuristic citation + token overlap, mạnh hơn kiểm “source tồn tại” nhưng chưa thay thế semantic entailment review của người. Với case hậu quả cao, cần review tay trước production.
+
+### Golden set
+
+- File người đọc: `eval/golden-set.md`.
+- File máy đọc: `eval/golden-set.json`.
+- 30 case:
+  - E01–E06: không có nguồn.
+  - E07–E12: mơ hồ.
+  - E13–E18: ngoài phạm vi/thẩm quyền.
+  - E19–E24: hậu quả domain cao.
+  - E25–E30: hoàn toàn ngoài domain để bắt false `FOUND`.
+- 18/30 case bắt nguồn hoặc được phát triển từ cách hỏi quan sát thực tế.
+- Provenance máy đọc hiện gồm 4 `chatlog_style_adjusted` + 3 `chatlog_course_question_adjusted` = **7 case ghi rõ nguồn gốc chatlog**. Con số này chưa đạt yêu cầu rubric “≥10 case từ chatlog”; cần bổ sung ít nhất 3 case paraphrase có provenance kiểm tra được rồi chạy lại toàn bộ eval. Không đổi nhãn case hiện tại chỉ để đủ số.
+- Eval runner thêm A01–A03 cho summarize/synthesize/self-check; ba action case không làm thay đổi con số golden set 30.
+
+### Quality bar đã chốt
+
+**Đạt khi ≥75% tổng case pass và 0 restricted-data leak.**
+
+Quality bar này đã có trong commit `f455e58` lúc 17:42:51 +07:00 ngày 2026-07-30, trước mốc 23:59, và được giữ nguyên; không thay đổi để làm đẹp kết quả.
+
+### Kết quả thật
+
+| Lượt | Mode | Bộ case | Pass | Rate | Leak | Kết luận |
+|---|---|---:|---:|---:|---:|---|
+| `run-01-results.md` | fallback lịch sử | 5 | 5 | 100% | 0 | Smoke/data runtime ban đầu; trước relevance gate mới |
+| `run-02-results.md` | fallback lịch sử | 24 | 24 | 100% | 0 | Golden set cũ; không phải OpenAI |
+| `run-fallback-results.md` | fallback hiện tại | 33 | 33 | 100% | 0 | Đạt bar; false `FOUND` ngoài domain = 0; action fail = 0 |
+| `run-openai-results.md` | OpenAI `gpt-5` | 33 | 30 | 90,9% | 0 | Đạt bar tổng nhưng fail cả 3 action contract; không che giấu |
+
+Phân tích OpenAI failure:
+
+- A01 summarize: model có nội dung/citation nhưng sanitizer làm mất line structure.
+- A02 synthesize: nội dung/citation có nhưng thiếu heading/numbered contract ổn định.
+- A03 self-check: model thêm phần giải thích trước câu hỏi và dùng bullet không đúng contract, có nguy cơ lộ nội dung cần tự nhớ.
+- Sau run 30/33, code đã:
+  - giữ line structure khi sanitize;
+  - bỏ instruction xung đột;
+  - normalize action output mà không thêm kiến thức ngoài output model;
+  - fallback có nhãn nếu không normalize an toàn;
+  - thêm unit test cho model-output normalization.
+- Regression sau fix: smoke pass và 9/9 unit test pass.
+- Full OpenAI rerun sau fix đã được bắt đầu nhưng bị dừng theo yêu cầu người dùng; **không có số mới và không ghi đè run 30/33**. Việc còn lại là chạy lại full OpenAI eval.
+
+### Lệnh kiểm thử
+
+```powershell
+cd C:\VinUni-Lab\K3-Day05-5nangcongchua\codebase
+python smoke_test.py
+python -m unittest -v test_recall_workflow.py
+python eval_runner.py --mode fallback
+python eval_runner.py --mode openai --write
+```
+
+OpenAI eval chỉ ghi `run-openai-results.md` khi `FOUND` thực sự có `answer_source=openai`; không dùng fallback để gắn nhãn OpenAI.
 
 ## §8. Phân Công & Kế Hoạch
 
-| Phần | Người phụ trách |
-|---|---|
-| Spec + lát cắt | Châu |
-| MVP UI | Trang |
-| Backend Python + OpenAI call | Châu |
-| Evidence survey + mining tại chỗ | Tuyết |
-| Golden set + eval | Quỳnh |
-| Validation live + demo | Bích |
+| Phần | Người phụ trách | Artifact/trạng thái |
+|---|---|---|
+| Spec + lát cắt | Châu | `spec.md`; đang hoàn thiện |
+| MVP UI | Trang | `codebase/index.html`; working local |
+| Backend + OpenAI | Châu | `codebase/server.py`; working local |
+| Evidence survey + mining | Tuyết | `validation/`, `eval/mining-notes.md` |
+| Golden set + eval | Quỳnh | `eval/`; fallback + OpenAI run đã có |
+| Validation live + demo | Bích | `validation/feedback-log.md`, demo |
 
-- **Survey:** đã có 20 phản hồi ẩn danh trong `validation/survey-recall-raw.csv`.
-- **Validation CP5 còn cần:** ít nhất 5 người ngoài nhóm dùng MVP thật, ghi vào `validation/feedback-log.md` với tên/vai, task/input, quan sát, quote ngắn, severity và quyết định.
-- **Willing user signal:** 13/20 survey trả lời sẵn sàng thử; 7/20 có thể thử tùy cách hoạt động. Nhóm cần chuyển signal này thành danh sách người test có tên trước CP5.
+### Trạng thái validation
+
+| Hạng mục | Trạng thái thật | Việc còn lại |
+|---|---|---|
+| Survey pain ≥20 | Hoàn tất 20 phản hồi | Không |
+| Willing-user signal | 13 yes, 7 maybe nhưng survey không có tên | Mời và ghi tên ≥3 người cụ thể |
+| User test MVP ≥5 người | 0/5 được log; `feedback-log.md` còn placeholder | Chạy theo `validation-script.md`, không thuyết minh giữa task |
+| Quote + quan sát + severity | Chưa có | Ghi đủ 5 mẩu từ 5 người ngoài nhóm |
+| Thay đổi từ validation | Chưa thể claim | Sau test, ghi quyết định vào §9 |
+| Dry run demo | Chưa có bằng chứng trong repo | Chạy 5 phút và ghi kết quả |
+
+Ba câu hỏi validation:
+
+1. Điều gì khó hiểu hoặc khó chịu nhất?
+2. Kết quả này bạn có tin không — vì sao?
+3. Bạn có dùng thật không — vì sao hoặc vì sao chưa?
+
+### Multi-prototype
+
+Repo chưa có bằng chứng nhóm đã chạy hai prototype trên một trục thiết kế; spec không tự claim điểm này. Nếu còn thời gian, so sánh:
+
+- Phương án A: answer-first rồi source card.
+- Phương án B: source-first, user chọn nguồn rồi mới summarize.
+
+Trục quyết định: mức automation và thứ tự tạo niềm tin, không phải màu/UI. Log kết quả thử vào `validation/` trước khi chốt.
+
+### Việc phải chốt trước demo
+
+1. Điền Zone và xác nhận tên/phân công trong root `README.md`.
+2. Chạy lại full OpenAI eval sau action fix; giữ cả fail nếu còn.
+3. Test UI với ≥5 người ngoài nhóm và hoàn thiện feedback log.
+4. Thêm ít nhất một thay đổi từ feedback vào changelog hoặc ghi rõ lý do giữ nguyên.
+5. Dry run case happy path, case `CLARIFY` và case false-`FOUND` ngoài domain.
+
+### Rubric readiness — tự audit trung thực
+
+| Rubric | Trạng thái | Bằng chứng/gap |
+|---|---|---|
+| R1 — Evidence & impact | Gần đủ | Survey n=20, 90% xác nhận, 7 quote, bảng 4 ứng viên; raw ẩn danh nên cần xác nhận “ngoài nhóm/duy nhất” |
+| R2 — Lát cắt & thiết kế | Đủ trên artifact | Một-câu slice, 8 non-goal, Conditional automation, 9 HAX/PAIR mapping |
+| R3 — Chỗ khó & flow | Đủ trên artifact | 12 scenario, mỗi lớp 3 case; happy/low-confidence/failure/correction đều có |
+| R4 — Kiểm thử | Chưa đủ tuyệt đối | 30+3 case và bốn run thật; chỉ 7 case ghi rõ provenance chatlog, cần ≥10 |
+| R5 — Prototype | Đủ cho Working local | End-to-end local và OpenAI live run 30/33; action fix cần live rerun |
+| R6 — User validation | Chưa đạt | Feedback log 0/5, chưa có quote/tên/vai hoặc thay đổi từ validation |
+| R7 — Repo/process | Chưa chốt | Artifact đủ; root README chưa có danh sách thành viên/phân công đầy đủ và Zone chưa xác nhận |
 
 ## §9. Changelog
 
-| Thời điểm | Đổi gì | Vì sao |
+| Thời điểm | Đổi gì | Vì sao/bằng chứng |
 |---|---|---|
-| 2026-07-30 | Đổi chatbot thành VLearn Recall, giữ web là VLearn | Feature hỗ trợ VLearn thật, không đổi brand web chính |
-| 2026-07-30 | Thêm `FOUND / CLARIFY / NOT_FOUND` | Phủ happy path, mơ hồ, không căn cứ |
-| 2026-07-30 | Thêm backend Python `codebase/server.py` gọi OpenAI cho intent classification/query rewrite/grounded answer | Đáp ứng yêu cầu có AI thật nhưng không lộ API key trong frontend |
-| 2026-07-30 | Nối MVP với PDF, transcript và chatlog thật tại runtime | Dùng data thật nhưng không copy dữ liệu ra ngoài `data/` |
-| 2026-07-30 | Chỉnh public output thành slide-only; transcript/chatlog chỉ dùng làm evidence nội bộ | Người học cần câu trả lời + đường dẫn mở slide, không cần thấy nguồn raw |
-| 2026-07-30 | Thêm custom slide viewer render từng trang và sync số trang khi scroll/click | Đáp ứng flow giống VLearn thật, mở được đúng trang nguồn |
-| 2026-07-30 | Import survey raw vào `validation/survey-recall-raw.csv` và thêm summary | Bổ sung bằng chứng pain/impact theo rubric |
+| 2026-07-30 | Chọn VLearn Recall thay vì sửa toàn tutor | Survey: 18/20 gặp pain; scope recall demo được end-to-end |
+| 2026-07-30 | Chốt `FOUND / CLARIFY / NOT_FOUND` | Phủ happy path, ambiguity và no-grounding |
+| 2026-07-30 | Routing chuyển thành deterministic; OpenAI chỉ diễn giải sau retrieval trong query flow | Không để model quyết định nguồn trước relevance gate |
+| 2026-07-30 | Slide + transcript là nguồn hợp lệ; chatlog bị loại khỏi runtime | Đúng source policy và data boundary |
+| 2026-07-30 | Thêm absolute relevance gate | Chặn top-1 tương đối gây false `FOUND` |
+| 2026-07-30 | Xóa answer hard-code RAG/ROI/MVP/quick win/AI Agent | Không để answer đúng nhưng citation sai |
+| 2026-07-30 | Chuẩn hóa source contract và tối đa 3 source card | Mỗi nguồn có preview, relevance và open action riêng |
+| 2026-07-30 | Transcript mở viewer đúng segment; slide mở đúng PDF/page | Không xuất raw transcript và cho user tự kiểm |
+| 2026-07-30 | Hoàn thiện summarize/synthesize/self-check | Hỗ trợ ôn lại sau khi tìm đúng nguồn |
+| 2026-07-30 | Loại claim selected text khỏi UI | Slide viewer chưa có text layer thật |
+| 2026-07-30 | Nâng golden set từ 24 lên 30 + 3 action case | Thêm false-`FOUND`, grounding và navigation eval |
+| 2026-07-30 | Ghi đúng fallback 33/33 và OpenAI 30/33 | Không đổi mode/số liệu để làm đẹp |
+| 2026-07-30 | Sửa action output sau 3 failure OpenAI; thêm unit test normalization | Failure A01–A03 cho thấy line structure và instruction bị xung đột |
+| Pending validation | Chưa có thay đổi từ 5 user test | `validation/feedback-log.md` chưa có dữ liệu thật; không tự bịa |
+
+## Phụ Lục — Artifact Map
+
+| Mục | File |
+|---|---|
+| Workflow sản phẩm | `workflow-vlearn-recall.md` |
+| Backend | `codebase/server.py` |
+| UI | `codebase/index.html` |
+| Hướng dẫn chạy | `codebase/README.md` |
+| Survey raw/aggregate | `validation/survey-recall-raw.csv`, `validation/survey-summary.md` |
+| Validation script/log | `validation/validation-script.md`, `validation/feedback-log.md` |
+| Golden set | `eval/golden-set.md`, `eval/golden-set.json` |
+| Eval results | `eval/run-01-results.md`, `eval/run-02-results.md`, `eval/run-fallback-results.md`, `eval/run-openai-results.md` |
+| AI trace policy | `eval/ai-call-trace-template.md` |
+| Mining method | `eval/mining-notes.md` |
