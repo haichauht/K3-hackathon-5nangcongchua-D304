@@ -17,7 +17,7 @@ VLearn Recall là prototype Working local cho hướng A - VLearn. Sản phẩm 
 ## Thành Viên
 
 **Zone:** không có/không áp dụng.  
-**Trưởng nhóm:** chỉ ghi Huỳnh Thị Hải Châu nếu ban tổ chức yêu cầu trường “trưởng nhóm”.
+**Trưởng nhóm:** Huỳnh Thị Hải Châu.
 
 | Mã HV | Họ tên | Tên gọi trong artifact | Reflection |
 |---|---|---|---|
