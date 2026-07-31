@@ -56,7 +56,8 @@ class ApiContractTests(unittest.TestCase):
     def test_health_and_library_contract(self) -> None:
         health, _ = self.request_json("/api/health")
         self.assertEqual(health["status"], "ok")
-        self.assertEqual(health["ai_mode"], "fallback")
+        self.assertEqual(health["ai_mode"], "degraded")
+        self.assertTrue(health["generation"]["structured_outputs"])
         self.assertFalse(health["data"]["chatlog_available"])
         self.assertGreater(health["data"]["retrieval"]["documents"], 0)
 
@@ -91,6 +92,8 @@ class ApiContractTests(unittest.TestCase):
         self.assertEqual(result["status"], "FOUND")
         self.assertEqual(result["request_id"], "request-contract-1")
         self.assertLessEqual(len(result["results"]), 3)
+        self.assertEqual(result["generation"]["kind"], "learning_answer")
+        self.assertEqual(result["generation_meta"]["mode"], "extractive")
 
         locate, _ = self.request_json(
             "/api/recall-search",
@@ -103,10 +106,9 @@ class ApiContractTests(unittest.TestCase):
         self.assertEqual(locate["request_id"], "request-locate-1")
         self.assertEqual(locate["intent"]["type"], "LOCATE_SLIDE")
         self.assertEqual(
-            [item["page"] for item in locate["results"][:2]],
+            [item["page"] for item in locate["results"]],
             [23, 24],
         )
-        self.assertLessEqual(len(locate["results"]), 3)
 
         current, _ = self.request_json(
             "/api/recall-search",
@@ -196,7 +198,7 @@ class ApiContractTests(unittest.TestCase):
         ):
             create_app().run()
 
-        self.assertIn("answer_mode=fallback", output.getvalue())
+        self.assertIn("answer_mode=degraded", output.getvalue())
         self.assertIn("rag_index=", output.getvalue())
         fake_server.server_close.assert_called_once()
 

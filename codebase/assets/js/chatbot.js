@@ -194,97 +194,135 @@
     return "Đang trả lời câu hỏi từ học liệu của khóa…";
   }
 
-  function splitAnswer(value, sources) {
-    const compact = String(value || "").replace(/\r/g, "").trim();
-    const parts = compact.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
-    if (parts.length > 1 && parts[0].length <= 110) {
-      const title = parts[0]
-        .replace(/\[\[[^\]\r\n]+\]\]|\[T\d{2}-\d{3}\]/g, "")
-        .replace(/^Citation\s*:\s*/i, "")
-        .trim();
-      if (title) return { title, body: parts.slice(1).join("\n\n") };
-    }
-    return {
-      title: sources[0]?.title || "Nội dung từ học liệu",
-      body: compact || "Mình đã tìm được nguồn phù hợp để bạn kiểm tra.",
-    };
-  }
-
-  function isRawCitationLine(line) {
-    const trimmed = line.trim();
-    return /^Citation\s*:/i.test(trimmed)
-      || /^(?:(?:\[\[[^\]\r\n]+\]\]|\[T\d{2}-\d{3}\])\s*)+$/.test(trimmed);
-  }
-
-  function formatAnswerLine(line, sources, messageId) {
-    const citationPattern = /\[\[([^\]\r\n]+)\]\]|\[(T\d{2}-\d{3})\]/g;
-    let cursor = 0;
-    let markup = "";
-    let match;
-    while ((match = citationPattern.exec(line)) !== null) {
-      markup += utils.escapeHtml(line.slice(cursor, match.index));
-      const sourceId = match[1] || `[${match[2]}]`;
-      const sourceIndex = sources.findIndex(
-        (source) => context.sourceIdentity(source) === sourceId
-      );
-      if (sourceIndex >= 0) {
-        const sourceLabel = context.formatSourceLabel(sources[sourceIndex], sourceIndex);
-        markup += `
+  function renderFieldCitations(citedSources, allSources, messageId) {
+    const indexes = (Array.isArray(citedSources) ? citedSources : [])
+      .map((source) => allSources.findIndex(
+        (candidate) => context.sourceIdentity(candidate) === context.sourceIdentity(source)
+      ))
+      .filter((index, position, values) => index >= 0 && values.indexOf(index) === position);
+    if (!indexes.length) return "";
+    return `
+      <span class="field-citations" aria-label="Nguồn cho ý này">
+        ${indexes.map((index) => `
           <button
             class="citation-link inline-citation"
-            type="button"
-            aria-label="Mở ${utils.escapeHtml(sourceLabel)}"
-            data-source-action="citation"
-            data-message-id="${utils.escapeHtml(messageId)}"
-            data-source-index="${sourceIndex}"
-          >${utils.escapeHtml(sourceLabel)}</button>
-        `;
-      }
-      cursor = match.index + match[0].length;
-    }
-    markup += utils.escapeHtml(line.slice(cursor));
-    return markup;
-  }
-
-  function formatAnswerBody(value, sources = [], messageId = "") {
-    return String(value || "")
-      .split(/\n{2,}/)
-      .map((part) => part
-        .split("\n")
-        .filter((line) => !isRawCitationLine(line))
-        .map((line) => formatAnswerLine(line, sources, messageId))
-        .join("<br />")
-        .trim())
-      .filter(Boolean)
-      .map((part) => `<p>${part}</p>`)
-      .join("");
-  }
-
-  function hasVisibleInlineCitations(value) {
-    return String(value || "")
-      .split("\n")
-      .some((line) => (
-        !isRawCitationLine(line)
-        && (/\[\[[^\]\r\n]+\]\]|\[T\d{2}-\d{3}\]/).test(line)
-      ));
-  }
-
-  function renderCitations(sources, messageId) {
-    if (!sources.length) return "";
-    return `
-      <div class="citation-list" aria-label="Nguồn trích dẫn">
-        ${sources.map((source, index) => `
-          <button
-            class="citation-link"
             type="button"
             data-source-action="citation"
             data-message-id="${utils.escapeHtml(messageId)}"
             data-source-index="${index}"
-          >${utils.escapeHtml(context.formatSourceLabel(source, index))}</button>
+          >${utils.escapeHtml(context.formatSourceLabel(allSources[index], index))}</button>
         `).join("")}
-      </div>
-      <p class="citation-error" data-citation-error hidden></p>
+      </span>
     `;
+  }
+
+  function renderStructuredGeneration(generation, sources, messageId, meta = {}) {
+    if (!generation || typeof generation !== "object") return "";
+    const degraded = meta?.degraded
+      ? `<p class="generation-mode-note">Đang dùng chế độ diễn giải offline từ nguồn đã tìm được.</p>`
+      : "";
+    const sourceLinks = (item) => renderFieldCitations(
+      item?.citations || [],
+      sources,
+      messageId
+    );
+
+    if (generation.kind === "slide_summary") {
+      const points = Array.isArray(generation.key_points) ? generation.key_points : [];
+      if (!generation.title || !generation.main_idea || !generation.takeaway || !points.length) return "";
+      return `
+        <article class="answer-card structured-answer">
+          <h3 class="answer-title">${utils.escapeHtml(generation.title)}</h3>
+          ${degraded}
+          <section class="structured-section">
+            <h4>Ý chính</h4>
+            <p>${utils.escapeHtml(generation.main_idea)}</p>
+            ${renderFieldCitations(sources, sources, messageId)}
+          </section>
+          <section class="structured-section">
+            <h4>Điều cần nhớ</h4>
+            <ol class="structured-list">
+              ${points.map((point) => `
+                <li>
+                  <span>${utils.escapeHtml(point.text)}</span>
+                  ${sourceLinks(point)}
+                </li>
+              `).join("")}
+            </ol>
+          </section>
+          <section class="structured-section">
+            <h4>Kết luận</h4>
+            <p>${utils.escapeHtml(generation.takeaway)}</p>
+          </section>
+        </article>
+      `;
+    }
+
+    if (generation.kind === "multi_slide_synthesis") {
+      const themes = Array.isArray(generation.themes) ? generation.themes : [];
+      if (!generation.topic || !generation.overview || !generation.connections || !themes.length) return "";
+      return `
+        <article class="answer-card structured-answer">
+          <h3 class="answer-title">${utils.escapeHtml(generation.topic)}</h3>
+          ${degraded}
+          <div class="answer-body"><p>${utils.escapeHtml(generation.overview)}</p></div>
+          <div class="structured-themes">
+            ${themes.map((theme) => `
+              <section class="structured-section">
+                <h4>${utils.escapeHtml(theme.heading)}</h4>
+                <p>${utils.escapeHtml(theme.summary)}</p>
+                ${sourceLinks(theme)}
+              </section>
+            `).join("")}
+          </div>
+          <section class="structured-section connection-section">
+            <h4>Mối liên hệ</h4>
+            <p>${utils.escapeHtml(generation.connections)}</p>
+          </section>
+        </article>
+      `;
+    }
+
+    if (generation.kind === "self_check") {
+      const questions = Array.isArray(generation.questions) ? generation.questions : [];
+      if (!generation.title || !generation.instructions || !questions.length) return "";
+      return `
+        <article class="answer-card structured-answer">
+          <h3 class="answer-title">${utils.escapeHtml(generation.title)}</h3>
+          ${degraded}
+          <p class="self-check-note">${utils.escapeHtml(generation.instructions)}</p>
+          <ol class="structured-list self-check-list">
+            ${questions.map((item) => `
+              <li>
+                <span>${utils.escapeHtml(item.question)}</span>
+                ${sourceLinks(item)}
+              </li>
+            `).join("")}
+          </ol>
+        </article>
+      `;
+    }
+
+    if (generation.kind === "learning_answer") {
+      const points = Array.isArray(generation.key_points) ? generation.key_points : [];
+      if (!generation.title || !generation.answer || !points.length) return "";
+      return `
+        <article class="answer-card structured-answer">
+          <h3 class="answer-title">${utils.escapeHtml(generation.title)}</h3>
+          ${degraded}
+          <div class="answer-body"><p>${utils.escapeHtml(generation.answer)}</p></div>
+          <ul class="structured-list">
+            ${points.map((point) => `
+              <li>
+                <span>${utils.escapeHtml(point.text)}</span>
+                ${sourceLinks(point)}
+              </li>
+            `).join("")}
+          </ul>
+        </article>
+      `;
+    }
+    return "";
   }
 
   function renderSourceCards(sources, messageId, hidden = false) {
@@ -401,6 +439,16 @@
       return;
     }
 
+    if (status === "AI_UNAVAILABLE" || status === "INVALID_MODEL_OUTPUT") {
+      renderError(
+        element,
+        payload.message || "Tạm thời chưa thể tạo phần tóm tắt. Vui lòng thử lại.",
+        request.text,
+        { status, error: payload.error }
+      );
+      return;
+    }
+
     if (status !== "FOUND" || !sources.length) {
       renderError(
         element,
@@ -435,21 +483,27 @@
       return;
     }
 
-    const answer = splitAnswer(payload.answer || payload.message, sources);
+    const citationSources = context.getValidSources(payload?.citations || []);
+    const structuredMarkup = renderStructuredGeneration(
+      payload.generation,
+      citationSources,
+      messageId,
+      payload.generation_meta
+    );
+    if (!structuredMarkup) {
+      renderError(
+        element,
+        "Kết quả AI chưa có đủ trường có cấu trúc để hiển thị an toàn. Vui lòng thử lại.",
+        request.text,
+        { status: "INVALID_MODEL_OUTPUT" }
+      );
+      return;
+    }
     const findSlidesAction = request.intent === "knowledge" && slideSources.length
       ? `<div class="follow-ups"><button class="follow-up-btn" type="button" data-source-action="show_sources" data-message-id="${utils.escapeHtml(messageId)}">Tìm slide liên quan</button></div>`
       : "";
-
-    const answerValue = payload.answer || payload.message || "";
-    const citationMarkup = hasVisibleInlineCitations(answerValue)
-      ? ""
-      : renderCitations(sources, messageId);
     const markup = `
-      <article class="answer-card">
-        <h3 class="answer-title">${utils.escapeHtml(answer.title)}</h3>
-        <div class="answer-body">${formatAnswerBody(answer.body, sources, messageId)}</div>
-      </article>
-      ${citationMarkup}
+      ${structuredMarkup}
       ${findSlidesAction}
       ${renderSourceCards(slideSources, messageId, true)}
     `;
@@ -458,7 +512,7 @@
       status,
       intent: payload?.intent?.type || "KNOWLEDGE_ANSWER",
       slides: slideSources,
-      citations: sources,
+      citations: citationSources,
       actions: slideSources.length ? ["show_sources"] : [],
       actionResults: {},
     });
@@ -520,8 +574,17 @@
   }
 
   function renderActionResult(element, payload, options) {
-    const sources = context.getValidSources(payload?.results || options.sources || []);
-    if (payload?.status !== "FOUND" || !sources.length) {
+    if (payload?.status === "AI_UNAVAILABLE" || payload?.status === "INVALID_MODEL_OUTPUT") {
+      renderError(
+        element,
+        payload.message || "Tạm thời chưa thể tạo phần tóm tắt. Vui lòng thử lại.",
+        "",
+        { action: options.action, status: payload.status }
+      );
+      return;
+    }
+    const sources = context.getValidSources(payload?.citations || []);
+    if (payload?.status !== "FOUND" || !sources.length || !payload.generation) {
       renderError(
         element,
         payload?.message || "Nguồn này chưa đủ thông tin để hoàn thành thao tác.",
@@ -530,23 +593,25 @@
       );
       return;
     }
-    const answer = splitAnswer(payload.answer || payload.message, sources);
+    const structuredMarkup = renderStructuredGeneration(
+      payload.generation,
+      sources,
+      element.id,
+      payload.generation_meta
+    );
+    if (!structuredMarkup) {
+      renderError(
+        element,
+        "Kết quả AI chưa có đủ trường có cấu trúc để hiển thị an toàn. Vui lòng thử lại.",
+        "",
+        { action: options.action, status: "INVALID_MODEL_OUTPUT" }
+      );
+      return;
+    }
     const slides = sources.filter((source) => source.source_type === "slide");
-    const reveal = options.action === "self_check"
-      ? `<div class="follow-ups"><button class="follow-up-btn" type="button" data-source-action="reveal_answers" data-message-id="${utils.escapeHtml(element.id)}">Xem đáp án</button></div>`
-      : "";
-    const answerValue = payload.answer || payload.message || "";
-    const citationMarkup = hasVisibleInlineCitations(answerValue)
-      ? ""
-      : renderCitations(sources, element.id);
     replaceMessage(
       element,
-      `<article class="answer-card">
-         <h3 class="answer-title">${utils.escapeHtml(answer.title)}</h3>
-         <div class="answer-body">${formatAnswerBody(answer.body, sources, element.id)}</div>
-       </article>
-       ${citationMarkup}
-       ${reveal}`,
+      structuredMarkup,
       payload.answer || payload.message || "",
       {
         requestId: options.requestId,
@@ -555,7 +620,7 @@
         action: options.action,
         slides,
         citations: sources,
-        actions: options.action === "self_check" ? ["reveal_answers"] : [],
+        actions: [],
         actionResults: {},
       }
     );

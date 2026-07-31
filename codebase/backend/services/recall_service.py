@@ -126,6 +126,24 @@ def select_locate_slide_results(results: list[dict], limit: int = 3) -> list[dic
         selected.append(result)
         if len(selected) >= limit:
             break
+
+    # Prefer a coherent pair over a weaker cross-document card. This avoids
+    # padding a focused locate result with a broadly related slide from another
+    # lesson while still allowing three equally strong cards or three cards
+    # from the same document.
+    if len(selected) >= 3:
+        first_file = str(selected[0].get("file", ""))
+        second_file = str(selected[1].get("file", ""))
+        third_file = str(selected[2].get("file", ""))
+        second_score = int(selected[1].get("score", 0))
+        third_score = int(selected[2].get("score", 0))
+        if (
+            first_file
+            and first_file == second_file
+            and third_file != first_file
+            and third_score < second_score
+        ):
+            selected = selected[:2]
     return selected
 
 
@@ -340,6 +358,25 @@ def contextual_followup_response(
         selected,
         task=kind,
     )
+    if answer.get("status") != "FOUND":
+        return {
+            "status": answer.get("status", "AI_UNAVAILABLE"),
+            "intent": {"label": "FOUND_CANDIDATE", "source": "history_followup", "query": ""},
+            "query": "",
+            "answer": "",
+            "message": answer.get("message", "Tạm thời chưa thể tạo nội dung. Vui lòng thử lại."),
+            "confidence": answer.get("confidence", retrieval_confidence(selected)),
+            "follow_up_options": [],
+            "suggestions": [],
+            "source_map": [],
+            "citations": [],
+            "answer_source": answer.get("source", "ai_unavailable"),
+            "generation": None,
+            "generation_meta": answer.get("generation_meta", {}),
+            "retryable": bool(answer.get("retryable")),
+            "error": answer.get("error", {}),
+            "results": [public_result(result) for result in selected],
+        }
     return {
         "status": "FOUND",
         "intent": {"label": "FOUND_CANDIDATE", "source": "history_followup", "query": ""},
@@ -351,6 +388,8 @@ def contextual_followup_response(
         "source_map": answer["source_map"],
         "citations": answer["source_map"],
         "answer_source": answer["source"],
+        "generation": answer.get("generation"),
+        "generation_meta": answer.get("generation_meta", {}),
         "results": [public_result(result) for result in selected],
         "message": "Trả lời dựa trên kết quả trước trong đoạn chat.",
     }
@@ -561,6 +600,25 @@ def search_recall(
         history=history,
         selected_text=selected_text,
     )
+    if answer.get("status") != "FOUND":
+        return {
+            "status": answer.get("status", "AI_UNAVAILABLE"),
+            "intent": intent,
+            "query": query,
+            "answer": "",
+            "message": answer.get("message", "Tạm thời chưa thể tạo nội dung. Vui lòng thử lại."),
+            "confidence": answer.get("confidence", retrieval_confidence(public_sources)),
+            "follow_up_options": [],
+            "suggestions": [],
+            "source_map": [],
+            "citations": [],
+            "answer_source": answer.get("source", "ai_unavailable"),
+            "generation": None,
+            "generation_meta": answer.get("generation_meta", {}),
+            "retryable": bool(answer.get("retryable")),
+            "error": answer.get("error", {}),
+            "results": [public_result(result) for result in public_sources],
+        }
     return {
         "status": "FOUND",
         "intent": intent,
@@ -572,6 +630,8 @@ def search_recall(
         "source_map": answer["source_map"],
         "citations": answer["source_map"],
         "answer_source": answer["source"],
+        "generation": answer.get("generation"),
+        "generation_meta": answer.get("generation_meta", {}),
         "results": [public_result(result) for result in public_sources],
         "message": f"Tìm thấy {len(public_sources)} nguồn phù hợp.",
     }

@@ -6,7 +6,7 @@ import re
 os.environ["OPENAI_API_KEY"] = ""
 
 from backend import runtime as server  # noqa: E402
-from backend.services import answer_service  # noqa: E402
+from backend.services import generation_service  # noqa: E402
 
 
 def assert_equal(actual, expected, label: str) -> None:
@@ -81,8 +81,9 @@ def main() -> None:
     follow = server.search_recall("Tom tat nguon nay", previous_sources=prior_sources)
     assert_equal(follow["intent"]["source"], "history_followup", "history follow-up source")
     assert follow.get("answer"), "history follow-up missing answer"
-    assert "Ý chính" in follow["answer"], "summary action missing main idea"
-    assert "3 điều cần nhớ" in follow["answer"], "summary action missing three takeaways"
+    assert_equal(follow.get("generation", {}).get("kind"), "slide_summary", "summary schema")
+    assert 2 <= len(follow["generation"]["key_points"]) <= 4, "summary point count"
+    assert follow.get("citations"), "summary citation missing"
 
     synthesis = server.search_recall(
         "Tong hop noi dung lien quan",
@@ -90,7 +91,12 @@ def main() -> None:
         action="synthesize",
     )
     assert_equal(synthesis["status"], "FOUND", "synthesis action")
-    assert "Tổng hợp theo vấn đề" in synthesis["answer"], "synthesis format missing"
+    assert_equal(
+        synthesis.get("generation", {}).get("kind"),
+        "multi_slide_synthesis",
+        "synthesis schema",
+    )
+    assert synthesis["generation"]["themes"], "synthesis themes missing"
 
     self_check = server.search_recall(
         "Tao cau tu kiem tra",
@@ -98,8 +104,13 @@ def main() -> None:
         action="self_check",
     )
     assert_equal(self_check["status"], "FOUND", "self-check action")
-    assert "chưa hiển thị đáp án" in self_check["answer"], "self-check leaks or omits answer policy"
-    assert "?" in self_check["answer"], "self-check question missing"
+    assert_equal(self_check.get("generation", {}).get("kind"), "self_check", "self-check schema")
+    assert 1 <= len(self_check["generation"]["questions"]) <= 3, "self-check question count"
+    assert all(
+        item["question"].endswith("?")
+        for item in self_check["generation"]["questions"]
+    ), "self-check question missing"
+    assert not re.search(r"(?i)đáp án\s*:", self_check["answer"]), "self-check leaked an answer"
 
     current_slide = server.search_recall(
         "Explain this slide",
@@ -138,23 +149,44 @@ def main() -> None:
     frontend = "\n".join(path.read_text(encoding="utf-8") for path in frontend_files)
     assert "selectionchange" not in frontend and "currentSelectedText" not in frontend, "UI still claims unsupported selected text"
 
-    original_key = answer_service.OPENAI_API_KEY
-    original_call = answer_service.call_openai_structured
+    original_key = generation_service.OPENAI_API_KEY
+    original_mode = generation_service.SETTINGS.ai_generation_mode
+    original_call = generation_service._openai_request
+    original_cache_get = generation_service.get_cached_generation
+    original_cache_put = generation_service.put_cached_generation
     calls = []
 
-    def fake_grounded_call(prompt, schema_name, schema, timeout=30):
-        calls.append(schema_name)
-        return {"answer": "Grounded test answer", "confidence": "medium", "follow_up_options": [], "source_map": []}
+    def fake_grounded_call(messages, schema):
+        calls.append(schema.__name__)
+        return {
+            "kind": "learning_answer",
+            "title": "RAG và citation",
+            "answer": "RAG truy xuất nội dung liên quan trước khi tạo câu trả lời.",
+            "key_points": [
+                {
+                    "text": "Citation giúp người học mở và kiểm tra đúng nguồn.",
+                    "source_indexes": [0],
+                }
+            ],
+            "used_source_indexes": [0],
+        }
 
     try:
-        answer_service.OPENAI_API_KEY = "test-key"
-        answer_service.call_openai_structured = fake_grounded_call
+        generation_service.OPENAI_API_KEY = "test-key"
+        generation_service.SETTINGS.ai_generation_mode = "openai"
+        generation_service._openai_request = fake_grounded_call
+        generation_service.get_cached_generation = lambda key: None
+        generation_service.put_cached_generation = lambda *args, **kwargs: None
         one_call = server.search_recall("RAG và citation")
-        assert_equal(calls, ["vlearn_recall_answer"], "one grounded OpenAI call")
+        assert_equal(calls, ["LearningAnswer"], "one grounded OpenAI call")
         assert_equal(one_call.get("answer_source"), "openai", "grounded answer source")
+        assert_equal(one_call.get("generation", {}).get("kind"), "learning_answer", "structured answer")
     finally:
-        answer_service.OPENAI_API_KEY = original_key
-        answer_service.call_openai_structured = original_call
+        generation_service.OPENAI_API_KEY = original_key
+        generation_service.SETTINGS.ai_generation_mode = original_mode
+        generation_service._openai_request = original_call
+        generation_service.get_cached_generation = original_cache_get
+        generation_service.put_cached_generation = original_cache_put
 
     print("Smoke test passed: runtime data + recall flow are working.")
 

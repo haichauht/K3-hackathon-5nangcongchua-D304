@@ -594,7 +594,11 @@ def ensure_runtime_index(force_rebuild: bool = False) -> tuple[list[dict], Local
                 "configured": SETTINGS.rag_rerank_enabled,
                 "mode": (
                     "dense_bi_encoder"
-                    if SETTINGS.rag_rerank_enabled and SEMANTIC_INDEX_CACHE.dense_ready
+                    if (
+                        SETTINGS.rag_rerank_enabled
+                        and DENSE_CLIENT.enabled
+                        and SEMANTIC_INDEX_CACHE.dense_ready
+                    )
                     else "deterministic_evidence"
                 ),
                 "extra_model_call_per_query": False,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from .config import SETTINGS
 from .rag import document_loader, retriever, vision_processor
-from .services.answer_service import is_openai_ready
+from .services.answer_service import generation_runtime_mode, is_openai_ready
 
 
 def health_status() -> dict:
@@ -30,11 +30,17 @@ def health_status() -> dict:
             },
         }
     )
+    generation_mode = generation_runtime_mode()
     return {
         "status": "ok",
         "ai_ready": is_openai_ready(),
-        "ai_mode": "openai" if is_openai_ready() else "fallback",
+        "ai_mode": generation_mode,
         "model": SETTINGS.openai_model if is_openai_ready() else "",
+        "generation": {
+            "configured_mode": SETTINGS.ai_generation_mode,
+            "effective_mode": generation_mode,
+            "structured_outputs": True,
+        },
         "data": {
             "slides": len(library["slides"]),
             "transcripts": len(library["transcripts"]),

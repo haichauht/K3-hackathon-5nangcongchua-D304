@@ -59,8 +59,7 @@ class RecallWorkflowTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "FOUND")
         self.assertEqual(result["intent"]["type"], "LOCATE_SLIDE")
-        self.assertEqual([item["page"] for item in result["results"][:2]], [23, 24])
-        self.assertLessEqual(len(result["results"]), 3)
+        self.assertEqual([item["page"] for item in result["results"]], [23, 24])
         self.assertTrue(all(item["source_type"] == "slide" for item in result["results"]))
         self.assertFalse(
             any("Discriminative AI" in item["title"] for item in result["results"])
@@ -164,11 +163,14 @@ class RecallWorkflowTests(unittest.TestCase):
         self.assertEqual(payload["segment_id"], child["parent_segment_id"])
         self.assertLessEqual(len(payload["content"]), server.TRANSCRIPT_VIEW_CHARS)
 
-    def test_fallback_answer_uses_retrieved_citations(self) -> None:
+    def test_degraded_answer_uses_structured_retrieved_citations(self) -> None:
         result = server.search_recall("RAG and citation")
-        self.assertEqual(result["answer_source"], "fallback")
-        markers = [server.citation_marker(item) for item in result["results"]]
-        self.assertTrue(any(marker in result["answer"] for marker in markers))
+        self.assertEqual(result["answer_source"], "extractive")
+        self.assertEqual(result["generation"]["kind"], "learning_answer")
+        self.assertTrue(result["generation_meta"]["degraded"])
+        self.assertTrue(result["citations"])
+        self.assertNotIn("[[", result["answer"])
+        self.assertNotIn("Citation:", result["answer"])
         self.assertNotRegex(
             result["answer"],
             r"ROI: baseline|Quick win: impact cao|AI Agent trong workflow",
@@ -184,10 +186,10 @@ class RecallWorkflowTests(unittest.TestCase):
             action="summarize",
         )
         self.assertEqual(summary["status"], "FOUND")
-        self.assertIn("Ý chính", summary["answer"])
-        self.assertIn("3 điều cần nhớ", summary["answer"])
-        self.assertRegex(summary["answer"], r"\n1\..*\n2\..*\n3\.")
-        self.assertIn(server.citation_marker(sources[0]), summary["answer"])
+        self.assertEqual(summary["generation"]["kind"], "slide_summary")
+        self.assertGreaterEqual(len(summary["generation"]["key_points"]), 2)
+        self.assertLessEqual(len(summary["generation"]["key_points"]), 4)
+        self.assertNotIn("[[", summary["answer"])
         self.assertEqual(len(summary["results"]), 1)
         self.assertEqual(len(summary["citations"]), 1)
         expected_source_id = sources[0].get("source_id") or (
@@ -208,10 +210,12 @@ class RecallWorkflowTests(unittest.TestCase):
             action="synthesize",
         )
         self.assertEqual(synthesis["status"], "FOUND")
-        self.assertIn("Tổng hợp theo vấn đề", synthesis["answer"])
-        self.assertTrue(
-            any(server.citation_marker(source) in synthesis["answer"] for source in sources)
+        self.assertEqual(
+            synthesis["generation"]["kind"],
+            "multi_slide_synthesis",
         )
+        self.assertTrue(synthesis["generation"]["themes"])
+        self.assertTrue(synthesis["citations"])
 
         self_check = server.search_recall(
             "Tao cau tu kiem tra",
@@ -219,10 +223,11 @@ class RecallWorkflowTests(unittest.TestCase):
             action="self_check",
         )
         self.assertEqual(self_check["status"], "FOUND")
-        self.assertIn("chưa hiển thị đáp án", self_check["answer"])
-        question_count = len(re.findall(r"(?m)^\d+\..*\?.*$", self_check["answer"]))
+        self.assertEqual(self_check["generation"]["kind"], "self_check")
+        question_count = len(self_check["generation"]["questions"])
         self.assertGreaterEqual(question_count, 1)
         self.assertLessEqual(question_count, 3)
+        self.assertNotRegex(self_check["answer"], r"(?i)đáp án\s*:")
 
     def test_fallback_learning_actions_keep_complete_ideas_without_filler(self) -> None:
         from backend.services.learning_action_service import (

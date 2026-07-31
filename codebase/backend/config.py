@@ -40,6 +40,7 @@ class Settings:
     cors_origins: tuple[str, ...]
     openai_api_key: str
     openai_model: str
+    ai_generation_mode: str
     openai_answer_timeout_seconds: int
     openai_reasoning_effort: str
     openai_max_output_tokens: int
@@ -96,6 +97,9 @@ def load_settings() -> Settings:
             if dense_enabled
             else "local-tfidf-char3-v2"
         )
+    generation_mode = os.environ.get("AI_GENERATION_MODE", "auto").strip().lower()
+    if generation_mode not in {"auto", "openai", "extractive"}:
+        generation_mode = "auto"
     return Settings(
         codebase_root=CODEBASE_ROOT,
         repository_root=REPOSITORY_ROOT,
@@ -107,6 +111,7 @@ def load_settings() -> Settings:
         cors_origins=cors_origins,
         openai_api_key=api_key,
         openai_model=os.environ.get("OPENAI_MODEL", "gpt-5"),
+        ai_generation_mode=generation_mode,
         openai_answer_timeout_seconds=max(
             3,
             int(os.environ.get("OPENAI_ANSWER_TIMEOUT_SECONDS", "12")),

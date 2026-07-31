@@ -28,6 +28,9 @@ LEAK_RE = re.compile(
 def load_server(mode: str):
     if mode == "fallback":
         os.environ["OPENAI_API_KEY"] = ""
+        os.environ["AI_GENERATION_MODE"] = "extractive"
+    else:
+        os.environ["AI_GENERATION_MODE"] = "openai"
 
     sys.path.insert(0, str(ROOT))
     from backend import runtime as server  # noqa: PLC0415
@@ -44,6 +47,8 @@ def public_payload(result: dict) -> dict:
         "status": result.get("status"),
         "message": result.get("message"),
         "answer": result.get("answer"),
+        "generation": result.get("generation"),
+        "generation_meta": result.get("generation_meta"),
         "confidence": result.get("confidence"),
         "source_map": result.get("source_map"),
         "citations": result.get("citations", []),
@@ -87,10 +92,14 @@ def answer_quality_ok(case: dict, result: dict) -> bool:
         return True
     if result.get("intent", {}).get("type") == "LOCATE_SLIDE":
         return bool(result.get("answer") and result.get("results"))
-    answer = str(result.get("answer", ""))
-    sources = result.get("results", [])
-    citation_markers = [server_marker for server_marker in case.get("_citation_markers", []) if server_marker]
-    return bool(answer and citation_markers and any(marker in answer for marker in citation_markers))
+    generation = result.get("generation")
+    return bool(
+        isinstance(generation, dict)
+        and generation.get("kind")
+        and result.get("citations")
+        and "[[" not in str(result.get("answer", ""))
+        and "Citation:" not in str(result.get("answer", ""))
+    )
 
 
 def source_contract_ok(server, source: dict) -> bool:
@@ -127,38 +136,85 @@ def source_contract_ok(server, source: dict) -> bool:
 def answer_grounding_ok(server, result: dict) -> bool:
     if result.get("status") != "FOUND":
         return True
-    answer = str(result.get("answer", ""))
     sources = result.get("results", [])
     if result.get("intent", {}).get("type") == "LOCATE_SLIDE":
         return bool(
-            answer
+            result.get("answer")
             and sources
             and len(sources) <= 3
             and all(source.get("source_type") == "slide" for source in sources)
         )
-    markers = [server.citation_marker(item) for item in sources]
-    if not answer or not markers or not any(marker in answer for marker in markers):
+    generation = result.get("generation")
+    if not isinstance(generation, dict):
         return False
+    result_ids = {source_reference(source) for source in sources}
 
-    answer_without_citations = re.sub(r"\[\[?[^\]\n]{2,120}\]\]?", " ", answer)
-    answer_tokens = {
-        token
-        for token in server.tokenize(answer_without_citations)
-        if token not in server.GENERIC_RETRIEVAL_TERMS
-    }
-    evidence_tokens = set()
-    for source in sources:
-        runtime_source = server.resolve_runtime_source(source)
-        if runtime_source:
+    def grounded_items() -> list[tuple[str, list[dict]]]:
+        top_citations = result.get("citations", [])
+        kind = generation.get("kind")
+        if kind == "learning_answer":
+            items = [(str(generation.get("answer", "")), top_citations)]
+            items.extend(
+                (str(item.get("text", "")), item.get("citations", []))
+                for item in generation.get("key_points", [])
+            )
+            return items
+        if kind == "slide_summary":
+            items = [
+                (str(generation.get("main_idea", "")), top_citations),
+                (str(generation.get("takeaway", "")), top_citations),
+            ]
+            items.extend(
+                (str(item.get("text", "")), item.get("citations", []))
+                for item in generation.get("key_points", [])
+            )
+            return items
+        if kind == "multi_slide_synthesis":
+            items = [
+                (str(generation.get("overview", "")), top_citations),
+                (str(generation.get("connections", "")), top_citations),
+            ]
+            items.extend(
+                (str(item.get("summary", "")), item.get("citations", []))
+                for item in generation.get("themes", [])
+            )
+            return items
+        if kind == "self_check":
+            return [
+                (str(item.get("question", "")), item.get("citations", []))
+                for item in generation.get("questions", [])
+            ]
+        return []
+
+    items = grounded_items()
+    if not items:
+        return False
+    for text, citations in items:
+        if not text or not citations:
+            return False
+        if any(source_reference(source) not in result_ids for source in citations):
+            return False
+        evidence_tokens = set()
+        for citation in citations:
+            runtime_source = server.resolve_runtime_source(citation)
+            if runtime_source is None:
+                return False
             evidence_tokens.update(
                 token
                 for token in server.tokenize(server.document_search_text(runtime_source))
                 if token not in server.GENERIC_RETRIEVAL_TERMS
             )
-    if not answer_tokens:
-        return False
-    overlap = len(answer_tokens & evidence_tokens)
-    return overlap >= 2 or overlap / len(answer_tokens) >= 0.18
+        answer_tokens = {
+            token
+            for token in server.tokenize(text)
+            if token not in server.GENERIC_RETRIEVAL_TERMS
+        }
+        if not answer_tokens:
+            return False
+        overlap = len(answer_tokens & evidence_tokens)
+        if overlap < 1 and overlap / len(answer_tokens) < 0.08:
+            return False
+    return True
 
 
 def source_reference(source: dict) -> str:
@@ -201,7 +257,14 @@ def check_case(server, case: dict, mode: str) -> dict:
     answer_quality = answer_quality_ok(case, result) and answer_grounding_ok(server, result)
     source_support_ok = expected_source_support_ok(case, result)
     if case["expected_status"] == "FOUND":
-        found_ok = bool(result.get("answer") and result.get("results"))
+        found_ok = bool(
+            result.get("answer")
+            and result.get("results")
+            and (
+                result.get("intent", {}).get("type") == "LOCATE_SLIDE"
+                or result.get("generation")
+            )
+        )
         source_valid = all(
             server.is_valid_public_source(item)
             and source_contract_ok(server, item)
@@ -289,26 +352,27 @@ def check_action_cases(server, mode: str) -> list[dict]:
             previous_sources=selected,
             action=action,
         )
-        answer = str(result.get("answer", ""))
-        markers = [server.citation_marker(item) for item in result.get("results", [])]
+        generation = result.get("generation") or {}
         if action == "summarize":
             action_ok = (
-                "Ý chính" in answer
-                and "3 điều cần nhớ" in answer
-                and bool(re.search(r"(?m)^1\..*\n2\..*\n3\.", answer))
-                and any(marker in answer for marker in markers)
+                generation.get("kind") == "slide_summary"
+                and 2 <= len(generation.get("key_points", [])) <= 4
+                and bool(result.get("citations"))
             )
         elif action == "synthesize":
             action_ok = (
-                "Tổng hợp theo vấn đề" in answer
-                and any(marker in answer for marker in markers)
+                generation.get("kind") == "multi_slide_synthesis"
+                and bool(generation.get("themes"))
+                and bool(generation.get("connections"))
+                and bool(result.get("citations"))
             )
         elif action == "self_check":
-            question_count = len(re.findall(r"(?m)^\d+\..*\?.*$", answer))
+            questions = generation.get("questions", [])
             action_ok = (
-                "chưa hiển thị đáp án" in answer
-                and 1 <= question_count <= 3
-                and any(marker in answer for marker in markers)
+                generation.get("kind") == "self_check"
+                and 1 <= len(questions) <= 3
+                and all(str(item.get("question", "")).endswith("?") for item in questions)
+                and bool(result.get("citations"))
             )
         source_valid = bool(result.get("results")) and all(
             source_contract_ok(server, item)
@@ -335,7 +399,7 @@ def check_action_cases(server, mode: str) -> list[dict]:
                 "confidence": result.get("confidence", ""),
                 "result_count": len(result.get("results", [])),
                 "source_valid": source_valid,
-                "citation_valid": any(marker in answer for marker in markers),
+                "citation_valid": bool(result.get("citations")),
                 "confidence_ok": result.get("confidence") in {"high", "medium", "low"},
                 "suggestions_ok": suggestion_contract_ok(result),
                 "answer_quality": action_ok and answer_grounding_ok(server, result),

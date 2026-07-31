@@ -137,11 +137,6 @@
         prompt: "Tạo câu hỏi tự kiểm tra từ các slide đã chọn",
         loading: "Đang tạo câu hỏi tự kiểm tra…",
       },
-      reveal_answers: {
-        apiAction: "synthesize",
-        prompt: "Trả lời ngắn gọn các câu tự kiểm tra dựa trên nguồn đã chọn",
-        loading: "Đang chuẩn bị đáp án có trích dẫn…",
-      },
     };
     return definitions[action] || null;
   }

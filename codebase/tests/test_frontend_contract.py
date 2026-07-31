@@ -101,7 +101,7 @@ class FrontendContractTests(unittest.TestCase):
     def test_locate_slide_has_one_compact_response_block(self) -> None:
         chatbot = (ROOT / "assets" / "js" / "chatbot.js").read_text(encoding="utf-8")
         locate_branch = chatbot.split("if (isLocate) {", 1)[1].split(
-            "const answer = splitAnswer", 1
+            "const citationSources", 1
         )[0]
 
         self.assertIn("renderSourceCards(slideSources, messageId)", locate_branch)
@@ -116,17 +116,17 @@ class FrontendContractTests(unittest.TestCase):
         chatbot = (ROOT / "assets" / "js" / "chatbot.js").read_text(encoding="utf-8")
         context = (ROOT / "assets" / "js" / "context.js").read_text(encoding="utf-8")
 
-        self.assertIn("function isRawCitationLine", chatbot)
-        self.assertIn("function formatAnswerLine", chatbot)
-        self.assertIn("function hasVisibleInlineCitations", chatbot)
+        self.assertIn("function renderStructuredGeneration", chatbot)
+        self.assertIn("function renderFieldCitations", chatbot)
         self.assertIn('class="citation-link inline-citation"', chatbot)
-        self.assertIn("context.formatSourceLabel(sources[sourceIndex], sourceIndex)", chatbot)
+        self.assertIn("context.formatSourceLabel(allSources[index], index)", chatbot)
+        self.assertNotIn("function splitAnswer", chatbot)
+        self.assertNotIn("function formatAnswerBody", chatbot)
+        self.assertNotIn("reveal_answers", chatbot)
         self.assertNotIn(">Nguồn ${sourceIndex + 1}</button>", chatbot)
         self.assertIn("`Slide [${source.page}]`", context)
         self.assertIn("<span>Slide [${source.page}]</span>", chatbot)
         self.assertNotIn("Slide ${sourceNumber} · Trang", context)
-        self.assertIn("formatAnswerBody(answer.body, sources, messageId)", chatbot)
-        self.assertIn("formatAnswerBody(answer.body, sources, element.id)", chatbot)
 
 
 if __name__ == "__main__":

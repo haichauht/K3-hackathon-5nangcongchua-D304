@@ -64,6 +64,7 @@ Có thể mở trực tiếp `index.html`; frontend sẽ gọi `http://127.0.0.1
 ```env
 OPENAI_API_KEY=your_openai_api_key_here
 OPENAI_MODEL=gpt-5.6-luna
+AI_GENERATION_MODE=auto
 OPENAI_ANSWER_TIMEOUT_SECONDS=12
 OPENAI_REASONING_EFFORT=none
 OPENAI_MAX_OUTPUT_TOKENS=700
@@ -81,7 +82,7 @@ RAG_RERANK_ENABLED=true
 RAG_VISION_ENABLED=true
 ```
 
-Không có key thì retrieval và toàn bộ UI vẫn chạy. Answer/action dùng fallback chỉ diễn giải từ nguồn đã retrieve; nguồn không đủ hỗ trợ sẽ trả `NOT_FOUND`. Health báo đúng `ai_mode=fallback`, không gắn nhãn OpenAI.
+`AI_GENERATION_MODE=openai` bắt buộc dùng OpenAI cho generation; timeout/lỗi API trả `AI_UNAVAILABLE`, output sai sau một repair call trả `INVALID_MODEL_OUTPUT`, không âm thầm chuyển sang raw fallback. `extractive` chỉ dành cho debug/offline. `auto` dùng OpenAI khi có key; khi không có key vẫn diễn giải có cấu trúc từ retrieved source và health/UI ghi rõ `degraded`.
 
 ## Luồng xử lý
 
@@ -90,8 +91,9 @@ Không có key thì retrieval và toàn bộ UI vẫn chạy. Answer/action dùn
 3. Fast path dùng lexical + local sparse TF-IDF/char-trigram với normalized fields được cache trong RAM. Nếu dense đã được bật và build, truy vấn khó mới gọi query embedding; truy vấn có lexical support rõ không bị cộng thêm network latency.
 4. Absolute relevance gate loại top result không đủ căn cứ; query ngoài domain không được `FOUND` chỉ vì có top 1.
 5. Evidence reranker loại subchunk trùng parent, giữ tối đa ba nguồn và ưu tiên slide khi tương đương. Khi dense active, health ghi đúng mode `dense_bi_encoder`; đây không phải cross-encoder.
-6. OpenAI answer chỉ được gọi sau retrieval và chỉ nhận tối đa ba evidence block đã giới hạn. Nếu không có key/lỗi API, fallback dùng chính evidence đó.
-7. Answer/action được kiểm citation trước khi public.
+6. OpenAI chỉ được gọi sau retrieval và chỉ nhận projection đã làm sạch của tối đa ba source, không quá 1.200 ký tự/source. Mỗi task dùng prompt và Pydantic Structured Output riêng.
+7. Model chỉ trả `source_indexes`; backend validate rồi map sang `source_id`, file/page/segment và open action thật.
+8. Kết quả OpenAI hợp lệ được cache theo task, model, prompt version và source hash trong `data/.rag-index/generation_cache.json`; raw prompt/source không được ghi vào cache.
 
 Source policy:
 

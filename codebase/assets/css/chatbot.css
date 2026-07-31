@@ -625,6 +625,66 @@ body.chat-open .assistant-fab {
   cursor: not-allowed;
 }
 
+.structured-answer {
+  display: grid;
+  gap: 12px;
+}
+
+.structured-section {
+  display: grid;
+  gap: 6px;
+}
+
+.structured-section h4 {
+  margin: 0;
+  color: #dce8f7;
+  font-size: 13px;
+}
+
+.structured-section p,
+.self-check-note,
+.generation-mode-note {
+  margin: 0;
+  color: #bdcad8;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.structured-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 20px;
+  color: #bdcad8;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.structured-list li {
+  padding-left: 2px;
+}
+
+.field-citations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.generation-mode-note {
+  padding: 8px 10px;
+  border: 1px solid #594d2f;
+  border-radius: var(--radius-sm);
+  background: #272216;
+  color: #e7cb80;
+  font-size: 11px;
+}
+
+.connection-section {
+  padding-top: 10px;
+  border-top: 1px solid #2b3540;
+}
+
 .toast {
   position: fixed;
   left: 50%;
