@@ -1,0 +1,145 @@
+.top-strip {
+  height: 42px;
+  background: #5b333c;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  color: #ecd4d7;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.top-icon,
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line-strong);
+  background: #171d22;
+  color: #cdd8e6;
+  border-radius: 10px;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.top-icon {
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border-color: transparent;
+}
+
+.top-icon:hover,
+.icon-btn:hover,
+.mode-btn:hover,
+.doc-item:hover,
+.source-link:hover,
+.follow-up-btn:hover {
+  border-color: var(--blue);
+  color: #9fd2ff;
+}
+
+.top-icon:focus-visible,
+.icon-btn:focus-visible,
+.mode-btn:focus-visible,
+.doc-item:focus-visible,
+.source-link:focus-visible,
+.follow-up-btn:focus-visible,
+.chat-input:focus-visible,
+.page-input:focus-visible,
+.library-search:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.grid-icon {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 3px;
+}
+
+.grid-icon span {
+  border: 2px solid currentColor;
+  border-radius: 2px;
+}
+
+.top-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.top-title strong {
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+.top-title span {
+  color: #dfc4c8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.app-shell {
+  height: calc(100svh - 42px);
+  width: 100vw;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  background: #101518;
+  transition: grid-template-columns var(--transition-normal) ease;
+}
+
+body.left-collapsed .app-shell {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+
+.left-panel {
+  min-width: 0;
+  min-height: 0;
+  background: var(--surface);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+body.left-collapsed .left-panel {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.left-panel {
+  border-right: 1px solid var(--line);
+}
+
+@media (max-width: 1320px) {
+  .app-shell {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  body.left-collapsed .app-shell {
+    grid-template-columns: 0 minmax(0, 1fr);
+  }
+
+  .viewer-top {
+    grid-template-columns: 1fr;
+    align-content: center;
+    gap: 8px;
+    min-height: 116px;
+  }
+
+  .toolbar {
+    width: 100%;
+    overflow-x: auto;
+  }
+}

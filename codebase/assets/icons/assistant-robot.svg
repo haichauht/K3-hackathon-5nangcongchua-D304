@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">VLearn Recall assistant</title>
+  <defs>
+    <linearGradient id="robot-body" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#79c6ff"/>
+      <stop offset="1" stop-color="#41d2e2"/>
+    </linearGradient>
+  </defs>
+  <path d="M32 7v7" fill="none" stroke="#96a4b7" stroke-linecap="round" stroke-width="4"/>
+  <circle cx="32" cy="6" r="3" fill="#e7b94e"/>
+  <rect x="10" y="15" width="44" height="37" rx="12" fill="#121a21" stroke="url(#robot-body)" stroke-width="3"/>
+  <circle cx="24" cy="32" r="4" fill="#79c6ff"/>
+  <circle cx="40" cy="32" r="4" fill="#79c6ff"/>
+  <path d="M23 42c3 3 6 4 9 4s6-1 9-4" fill="none" stroke="#31c58d" stroke-linecap="round" stroke-width="3"/>
+  <path d="M10 28H6v11h4M54 28h4v11h-4" fill="none" stroke="#96a4b7" stroke-linecap="round" stroke-width="3"/>
+</svg>

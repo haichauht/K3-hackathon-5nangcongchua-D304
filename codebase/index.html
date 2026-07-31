@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VLearn Recall</title>
+  <link rel="stylesheet" href="assets/css/tokens.css" />
+  <link rel="stylesheet" href="assets/css/base.css" />
+  <link rel="stylesheet" href="assets/css/components.css" />
+  <link rel="stylesheet" href="assets/css/viewer.css" />
+  <link rel="stylesheet" href="assets/css/chatbot.css" />
+  <link rel="stylesheet" href="assets/css/layout.css" />
+</head>
+<body>
+  <header class="top-strip">
+    <button class="top-icon" type="button" id="toggleLibrary" title="Ẩn/hiện thư viện" aria-label="Ẩn/hiện thư viện">
+      <span class="grid-icon"><span></span><span></span><span></span><span></span></span>
+    </button>
+    <div class="top-title">
+      <strong>STUDY4</strong>
+      <span id="topCourseTitle">VLearn · Đang tải bài giảng</span>
+    </div>
+    <span class="top-divider"></span>
+    <button class="top-icon" type="button" id="goFirstDoc" title="Mở tài liệu đầu tiên" aria-label="Mở tài liệu đầu tiên">⌂</button>
+  </header>
+
+  <div class="app-shell">
+    <aside class="left-panel">
+      <div class="brand-bar">
+        <button class="icon-btn" type="button" id="previousDoc" title="Tài liệu trước" aria-label="Tài liệu trước">‹</button>
+        <div class="vlearn-logo">
+          <div class="logo-mark" aria-hidden="true"></div>
+          <span><span class="red">V</span><span class="blue">Learn</span></span>
+        </div>
+      </div>
+
+      <div class="left-scroll">
+        <div class="library-tools">
+          <input class="library-search" id="librarySearch" placeholder="Tìm bài giảng..." />
+          <div class="data-mini" aria-live="polite">
+            <span><b id="slideCount">0</b>slide</span>
+            <span><b id="transcriptCount">0</b>nguồn học</span>
+          </div>
+        </div>
+        <div id="dayList">
+          <div class="empty-state">Đang tải bài giảng...</div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="viewer">
+      <div class="viewer-top">
+        <div class="doc-heading">
+          <h1 id="docTitle">Đang tải tài liệu...</h1>
+          <p id="docSubtitle">Nguồn slide VLearn</p>
+        </div>
+        <div class="toolbar" role="toolbar" aria-label="Công cụ xem slide">
+          <button class="mode-btn active" type="button" id="readMode" title="Chế độ đọc">Đọc</button>
+          <button class="mode-btn" type="button" id="focusMode" title="Tập trung vào slide">Focus</button>
+          <span class="tool-separator"></span>
+          <input class="page-input" id="pageInput" type="number" min="1" value="1" title="Nhập trang" aria-label="Nhập trang" />
+          <span class="page-total" id="pageTotal">/ 1</span>
+          <span class="tool-separator"></span>
+          <button class="icon-btn" type="button" id="zoomOut" title="Thu nhỏ" aria-label="Thu nhỏ">−</button>
+          <span class="zoom-label" id="zoomLabel">100%</span>
+          <button class="icon-btn" type="button" id="zoomIn" title="Phóng to" aria-label="Phóng to">+</button>
+          <button class="icon-btn" type="button" id="fitWidth" title="Vừa khung" aria-label="Vừa khung">↔</button>
+        </div>
+      </div>
+
+      <div class="viewer-body">
+        <div id="pdfScroll" class="pdf-scroll" aria-label="VLearn slide viewer"></div>
+      </div>
+
+      <div class="viewer-bottom">
+        <button class="page-nav" type="button" id="prevPage" title="Trang trước" aria-label="Trang trước">‹</button>
+        <strong id="pageCounter">Trang 1 / 1</strong>
+        <button class="page-nav" type="button" id="nextPage" title="Trang sau" aria-label="Trang sau">›</button>
+      </div>
+    </main>
+
+  </div>
+
+  <div class="assistant-nudge" id="assistantNudge" role="status" hidden>
+    Cần tìm lại slide? Hỏi mình nhé!
+  </div>
+
+  <button
+    class="assistant-fab"
+    id="assistantFab"
+    type="button"
+    aria-label="Mở trợ lý VLearn Recall"
+    aria-controls="chatDrawer"
+    aria-expanded="false"
+    title="Mở VLearn Recall"
+  >
+    <img src="assets/icons/assistant-robot.svg" alt="" aria-hidden="true" />
+    <span class="assistant-unread" id="assistantUnread" aria-label="Có kết quả mới" hidden>1</span>
+  </button>
+
+  <aside
+    class="chat-drawer"
+    id="chatDrawer"
+    aria-label="Trợ lý VLearn Recall"
+    aria-hidden="true"
+    tabindex="-1"
+  >
+    <header class="chat-drawer-head">
+      <div class="bot-icon" aria-hidden="true">
+        <img src="assets/icons/assistant-robot.svg" alt="" />
+      </div>
+      <div class="right-title">
+        <h2>VLearn Recall</h2>
+        <p>Trợ lý tìm lại kiến thức</p>
+        <span class="connection-status" id="connectionStatus" data-status="checking">Đang kiểm tra</span>
+      </div>
+      <div class="right-actions">
+        <button class="icon-btn" type="button" id="refreshApp" title="Kiểm tra lại kết nối" aria-label="Kiểm tra lại kết nối">↻</button>
+        <button class="icon-btn" type="button" id="closeChatDrawer" title="Đóng trợ lý" aria-label="Đóng trợ lý">×</button>
+      </div>
+    </header>
+
+    <section class="context-panel" aria-labelledby="contextHeading">
+      <div class="context-row">
+        <label id="contextHeading" for="contextSelect">Phạm vi tìm kiếm</label>
+        <select id="contextSelect" class="context-select">
+          <option value="all">Tất cả học liệu</option>
+          <option value="day01">Day 1 – AI &amp; LLM Foundation</option>
+          <option value="day02">Day 2 – Xác định bài toán cho AI</option>
+          <option value="current" id="currentSlideOption" disabled>Slide đang mở</option>
+        </select>
+      </div>
+      <p class="context-scope" id="contextScopeText">Đang tìm trong: Tất cả học liệu</p>
+      <div class="current-slide-pill" id="currentSlidePill" hidden>
+        <span id="currentSlideContextLabel"></span>
+        <button type="button" id="clearSlideContext" aria-label="Xóa ngữ cảnh slide đang mở">×</button>
+      </div>
+    </section>
+
+    <div class="chat-messages" id="chatMessages" aria-live="polite" aria-relevant="additions">
+      <article class="welcome-card" id="welcomeCard">
+        <h3>Học nhanh hơn với đúng nguồn</h3>
+        <p>Xin chào! Mình là VLearn Recall — trợ lý AI giúp bạn tìm lại slide, giải thích kiến thức trong bài học và ôn tập theo đúng nguồn tài liệu. Bạn có thể hỏi bằng một câu nhớ mang máng, mình sẽ giúp tìm lại nội dung phù hợp.</p>
+        <div class="welcome-suggestions" aria-label="Câu hỏi gợi ý">
+          <button type="button" data-suggestion="Slide nào nói về AI Agent?">Slide nào nói về AI Agent?</button>
+          <button type="button" data-suggestion="Hình như thầy có nói khi nào nên dùng Automate?">Khi nào nên dùng Automate?</button>
+          <button type="button" data-suggestion="Automate và Augment khác nhau thế nào?">Automate và Augment khác nhau thế nào?</button>
+          <button type="button" data-suggestion="Giải thích slide đang mở.">Giải thích slide đang mở.</button>
+        </div>
+      </article>
+    </div>
+
+    <button class="new-message-jump" id="newMessageJump" type="button" hidden>
+      Xuống tin nhắn mới
+    </button>
+
+    <form class="chat-input-area" id="chatForm">
+      <div class="chat-compose">
+        <textarea
+          class="chat-input"
+          id="chatInput"
+          rows="1"
+          placeholder="Hỏi kiến thức hoặc tìm một slide…"
+          aria-label="Câu hỏi cho VLearn Recall"
+        ></textarea>
+        <button class="btn-send" type="submit" id="sendBtn" aria-label="Gửi câu hỏi" disabled>›</button>
+      </div>
+      <p>Câu trả lời được tạo từ học liệu của khóa.</p>
+    </form>
+  </aside>
+
+  <div class="transcript-overlay" id="transcriptOverlay" role="dialog" aria-modal="true" aria-labelledby="transcriptTitle">
+    <section class="transcript-viewer">
+      <header class="transcript-head">
+        <div>
+          <h3 id="transcriptTitle">Đoạn transcript</h3>
+          <p id="transcriptMeta">Nguồn nội bộ VLearn</p>
+        </div>
+        <button class="icon-btn" type="button" id="closeTranscript" title="Đóng transcript" aria-label="Đóng transcript">×</button>
+      </header>
+      <div class="transcript-content" id="transcriptContent">Đang tải đoạn transcript...</div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/state.js"></script>
+  <script src="assets/js/utils.js"></script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/context.js"></script>
+  <script src="assets/js/viewer.js"></script>
+  <script src="assets/js/chatbot.js"></script>
+  <script src="assets/js/actions.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

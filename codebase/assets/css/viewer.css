@@ -1,0 +1,243 @@
+.viewer {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #11161a;
+}
+
+.viewer-top {
+  padding: 0 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+
+.doc-heading {
+  min-width: 0;
+}
+
+.doc-heading h1 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-heading p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toolbar {
+  height: 54px;
+  border: 1px solid #38434e;
+  background: rgba(21, 27, 32, 0.96);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  color: #c4cfda;
+  min-width: 0;
+}
+
+.mode-btn {
+  height: 36px;
+  border: 1px solid #33404b;
+  border-radius: 10px;
+  background: #141a1f;
+  color: #c7d3e0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  cursor: pointer;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.mode-btn.active {
+  border-color: #2769a7;
+  background: #14263a;
+  color: #9bd4ff;
+}
+
+.tool-separator {
+  width: 1px;
+  height: 28px;
+  background: #3a444f;
+  margin: 0 2px;
+}
+
+.page-input {
+  width: 52px;
+  height: 34px;
+  border: 1px solid #3b4652;
+  border-radius: 8px;
+  background: #11171b;
+  color: #fff;
+  text-align: center;
+  outline: none;
+  font-weight: 800;
+}
+
+.page-total,
+.zoom-label {
+  color: #ccd6e4;
+  font-weight: 800;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.viewer-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #23282d;
+}
+
+.pdf-scroll {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: #2a2f34;
+  padding: 20px 28px;
+  scroll-behavior: smooth;
+}
+
+.slide-page {
+  margin: 0 auto 18px;
+  background: #f8fafc;
+  border: 1px solid #3a424a;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  transition:
+    width var(--transition-fast) ease,
+    outline-color var(--transition-fast) ease;
+}
+
+.slide-page.current {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.slide-page img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #fff;
+}
+
+.slide-loading,
+.empty-state {
+  color: #a8b5c6;
+  font-size: 14px;
+  text-align: center;
+  padding: 22px;
+}
+
+.viewer-bottom {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  border-top: 1px solid #303842;
+  background: rgba(18, 24, 28, 0.98);
+}
+
+.page-nav {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid #3a444f;
+  background: #171d22;
+  color: #d5dee9;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.page-nav:hover {
+  border-color: var(--blue);
+  color: #9bd4ff;
+}
+
+.page-nav:disabled,
+.icon-btn:disabled,
+.mode-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+
+.transcript-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-transcript-overlay);
+  display: none;
+  place-items: center;
+  padding: 24px;
+  background: rgba(4, 9, 14, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.transcript-overlay.open {
+  display: grid;
+}
+
+.transcript-viewer {
+  width: min(760px, 100%);
+  max-height: min(80vh, 760px);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  border: 1px solid #405064;
+  border-radius: 14px;
+  background: #11171b;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+}
+
+.transcript-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #2c3743;
+}
+
+.transcript-head h3 {
+  margin: 0 0 4px;
+  color: #f1f7ff;
+  font-size: 17px;
+}
+
+.transcript-head p {
+  margin: 0;
+  color: #8fa2b8;
+  font-size: 12px;
+}
+
+.transcript-content {
+  overflow: auto;
+  padding: 20px;
+  color: #d8e3ef;
+  font-size: 15px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
