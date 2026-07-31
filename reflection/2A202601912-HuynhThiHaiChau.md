@@ -5,26 +5,26 @@
 
 ## 1. Vai Trò Của Mình
 
-Mình phụ trách phần product spec, prototype UI và logic demo cho tính năng VLearn Recall. Phần mình làm tập trung vào lát cắt: học viên hỏi một câu nhớ mang máng, hệ thống tìm nguồn phù hợp hoặc hỏi lại/từ chối khi không đủ căn cứ.
+Mình phụ trách product spec, lát cắt sản phẩm, source policy và phần backend/AI chính của VLearn Recall. Phần của mình tập trung vào quyết định quan trọng nhất của sản phẩm: khi nào hệ thống được trả lời, khi nào phải hỏi lại, và khi nào phải từ chối vì không có căn cứ.
 
 ## 2. Phần Mình Đã Làm
 
-- Đọc đề bài, guide, rubric và template spec.
-- Thiết kế workflow `FOUND / CLARIFY / NOT_FOUND`.
-- Xây prototype `codebase/index.html` với chatbot VLearn Recall nằm trong giao diện VLearn.
-- Chỉnh prototype theo rule: không copy dữ liệu trong `data/` ra folder ngoài; source catalog hiện là mock.
-- Draft `spec.md`, `eval/`, `validation/`, `demo-slides.md`.
+- Đọc đề bài, guide, rubric và template spec để chốt hướng A - VLearn.
+- Viết và cập nhật `spec.md` theo workflow `FOUND / CLARIFY / NOT_FOUND`.
+- Thiết kế data boundary: slide/transcript là nguồn trả lời, chatlog chỉ dùng cho mining/eval local.
+- Phối hợp xây backend recall, guardrail, retrieval, source contract và OpenAI grounded answer/action.
+- Rà soát kết quả eval, ghi trung thực run OpenAI fail 30/33 và after-fix 33/33.
 
 ## 3. AI Đã Hỗ Trợ Như Thế Nào
 
-AI hỗ trợ mình tổ chức yêu cầu từ các file `.md`, gợi ý cấu trúc spec theo rubric, viết prototype HTML/CSS/JS, và tạo bộ golden set mock ban đầu. Mình vẫn cần hiểu rõ logic `FOUND / CLARIFY / NOT_FOUND` và rule data boundary để giải thích khi CP5/CP6.
+AI hỗ trợ mình hệ thống hóa yêu cầu từ guide/rubric, gợi ý cấu trúc spec, rà các chỗ mâu thuẫn giữa spec và artifact, và hỗ trợ viết/kiểm tra code backend. Mình vẫn phải tự nắm logic sản phẩm, đặc biệt là vì sao VLearn Recall chọn conditional automation thay vì tự động trả lời mọi câu.
 
 ## 4. Case Fail Mình Học Được
 
-Prototype ban đầu dễ trộn giữa "dùng data để hiểu bài toán" và "copy dữ liệu ra artifact". Sau khi siết rule, mình học được rằng với data nhạy cảm, prototype nên đọc dữ liệu tại runtime hoặc dùng mock catalog, không commit dữ liệu dẫn xuất nếu nhóm chưa cho phép.
+Run OpenAI đầu đạt 30/33 nhưng fail cả ba action `summarize / synthesize / self_check` vì output nghe đúng nhưng không giữ contract ổn định. Mình học được rằng với AI product, “câu trả lời có vẻ hay” chưa đủ; output contract, citation và failure mode phải kiểm thử được bằng eval.
 
 ## 5. Điều Cần Làm Tiếp
 
-- Thêm AI call thật cho bước phân loại intent hoặc rewrite query.
-- Nếu cần dùng data thật, thiết kế runtime đọc trực tiếp trong `data/` và không ghi bản sao ra ngoài.
-- Test với người học thật và ghi feedback log.
+- Chốt Zone trong README/spec.
+- Cùng nhóm hoàn thiện validation 5 user test thật.
+- Nếu có thêm thời gian, bổ sung semantic review cho các case hậu quả cao thay vì chỉ dựa vào heuristic grounding.

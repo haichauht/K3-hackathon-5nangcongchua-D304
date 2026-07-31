@@ -45,7 +45,7 @@ Các action học tập dùng chung một module vì cùng pipeline citation/nor
 ## Cài và chạy
 
 ```powershell
-cd C:\VinUni-Lab\K3-Day05-5nangcongchua\codebase
+cd D:\01_HocTap\AIThucChien\Lab\K3-hackathon-5nangcongchua-D304\codebase
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt

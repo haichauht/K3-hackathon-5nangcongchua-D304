@@ -1,12 +1,10 @@
-# AI SPEC — VLearn Recall · Nhóm 5 Nàng Công Chúa · Zone chưa xác nhận
+# AI SPEC — VLearn Recall · Nhóm 5 Nàng Công Chúa · Zone không có/không áp dụng
 
 - Hướng: [x] A — VLearn  [ ] B — Trợ lý Học viên  [ ] C — Làn mở
 - Loại: [ ] Tối ưu tính năng có sẵn  [x] Tính năng mới
 - Mức prototype: [ ] Sketch  [ ] Mock  [x] Working local
 
-Trạng thái tài liệu: khớp implementation và bằng chứng có trong repo tại ngày 2026-07-30.
-
-> **Metadata còn thiếu:** repo chưa có tên Zone. Nhóm cần điền trước khi nộp; tài liệu này không tự đoán.
+Trạng thái tài liệu: khớp implementation và bằng chứng có trong repo tại ngày 2026-07-31. Zone của nhóm: không có/không áp dụng.
 
 ## Data Boundary & Source Policy
 
@@ -226,7 +224,7 @@ Quy tắc:
 | Absolute relevance + source ranking | Working |
 | Fallback grounded answer/actions | Working |
 | OpenAI grounded answer | Working và đã có live eval |
-| OpenAI action output normalization sau lỗi eval | Code + local unit test đã có; full live rerun đang pending |
+| OpenAI action output normalization sau lỗi eval | Code + local unit test đã có; rerun OpenAI after-fix đã ghi riêng 33/33 |
 | Auth/session/deploy VLearn | Chưa làm |
 | Selected-text layer | Chưa làm; UI không claim |
 
@@ -328,15 +326,15 @@ Retrieval/navigation/status vẫn chạy. Fallback chỉ diễn giải source đ
 
 - File người đọc: `eval/golden-set.md`.
 - File máy đọc: `eval/golden-set.json`.
-- 30 case:
-  - E01–E06: không có nguồn.
-  - E07–E12: mơ hồ.
-  - E13–E18: ngoài phạm vi/thẩm quyền.
-  - E19–E24: hậu quả domain cao.
-  - E25–E30: hoàn toàn ngoài domain để bắt false `FOUND`.
-- 18/30 case bắt nguồn hoặc được phát triển từ cách hỏi quan sát thực tế.
-- Provenance máy đọc hiện gồm 4 `chatlog_style_adjusted` + 3 `chatlog_course_question_adjusted` = **7 case ghi rõ nguồn gốc chatlog**. Con số này chưa đạt yêu cầu rubric “≥10 case từ chatlog”; cần bổ sung ít nhất 3 case paraphrase có provenance kiểm tra được rồi chạy lại toàn bộ eval. Không đổi nhãn case hiện tại chỉ để đủ số.
-- Eval runner thêm A01–A03 cho summarize/synthesize/self-check; ba action case không làm thay đổi con số golden set 30.
+- 63 case trong golden set mở rộng:
+  - E01–E06 và E31–E36: không có nguồn.
+  - E07–E12, E37–E42 và E61: mơ hồ/thiếu ngữ cảnh.
+  - E13–E18 và E43–E48: ngoài phạm vi/thẩm quyền.
+  - E19–E24 và E62–E63: hậu quả domain cao.
+  - E49–E54: typo, mixed-language và paraphrase khóa học.
+  - E25–E30 và E55–E60: hoàn toàn ngoài domain để bắt false `FOUND`.
+- Provenance máy đọc hiện gồm 5 `chatlog_style_adjusted` + 5 `chatlog_course_question_adjusted` = **10 case ghi rõ nguồn gốc chatlog**. Các case này là paraphrase/điều chỉnh an toàn, không copy raw chatlog hoặc mã định danh người học.
+- Eval runner thêm A01–A03 cho summarize/synthesize/self-check; ba action case không làm thay đổi con số golden set 63.
 
 ### Quality bar đã chốt
 
@@ -352,6 +350,7 @@ Quality bar này đã có trong commit `f455e58` lúc 17:42:51 +07:00 ngày 2026
 | `run-02-results.md` | fallback lịch sử | 24 | 24 | 100% | 0 | Golden set cũ; không phải OpenAI |
 | `run-fallback-results.md` | fallback hiện tại | 33 | 33 | 100% | 0 | Đạt bar; false `FOUND` ngoài domain = 0; action fail = 0 |
 | `run-openai-results.md` | OpenAI `gpt-5` | 33 | 30 | 90,9% | 0 | Đạt bar tổng nhưng fail cả 3 action contract; không che giấu |
+| `run-openai-after-action-fix-results.md` | OpenAI `gpt-5` sau fix | 33 | 33 | 100% | 0 | Đạt bar; action failure = 0 sau normalization |
 
 Phân tích OpenAI failure:
 
@@ -365,14 +364,14 @@ Phân tích OpenAI failure:
   - fallback có nhãn nếu không normalize an toàn;
   - thêm unit test cho model-output normalization.
 - Regression sau fix: smoke pass và 9/9 unit test pass.
-- Full OpenAI rerun sau fix đã được bắt đầu nhưng bị dừng theo yêu cầu người dùng; **không có số mới và không ghi đè run 30/33**. Việc còn lại là chạy lại full OpenAI eval.
+- Full OpenAI rerun sau fix đã có artifact riêng `eval/run-openai-after-action-fix-results.md`; không ghi đè run 30/33 để giữ lịch sử failure. `eval/golden-set.md` còn ghi một live eval mở rộng 63/63 ngày 2026-07-31 không dùng `--write`; vì không có artifact kết quả riêng, spec chỉ dùng nó như ghi chú bổ trợ.
 
 ### Lệnh kiểm thử
 
 ```powershell
-cd C:\VinUni-Lab\K3-Day05-5nangcongchua\codebase
+cd D:\01_HocTap\AIThucChien\Lab\K3-hackathon-5nangcongchua-D304\codebase
 python smoke_test.py
-python -m unittest -v test_recall_workflow.py
+python -m pytest -q
 python eval_runner.py --mode fallback
 python eval_runner.py --mode openai --write
 ```
@@ -383,7 +382,7 @@ OpenAI eval chỉ ghi `run-openai-results.md` khi `FOUND` thực sự có `answe
 
 | Phần | Người phụ trách | Artifact/trạng thái |
 |---|---|---|
-| Spec + lát cắt | Châu | `spec.md`; đang hoàn thiện |
+| Spec + lát cắt | Châu | `spec.md`; đã hoàn thiện theo artifact hiện có |
 | MVP UI | Trang | `codebase/index.html`; working local |
 | Backend + OpenAI | Châu | `codebase/server.py`; working local |
 | Evidence survey + mining | Tuyết | `validation/`, `eval/mining-notes.md` |
@@ -396,10 +395,10 @@ OpenAI eval chỉ ghi `run-openai-results.md` khi `FOUND` thực sự có `answe
 |---|---|---|
 | Survey pain ≥20 | Hoàn tất 20 phản hồi | Không |
 | Willing-user signal | 13 yes, 7 maybe nhưng survey không có tên | Mời và ghi tên ≥3 người cụ thể |
-| User test MVP ≥5 người | 0/5 được log; `feedback-log.md` còn placeholder | Chạy theo `validation-script.md`, không thuyết minh giữa task |
-| Quote + quan sát + severity | Chưa có | Ghi đủ 5 mẩu từ 5 người ngoài nhóm |
-| Thay đổi từ validation | Chưa thể claim | Sau test, ghi quyết định vào §9 |
-| Dry run demo | Chưa có bằng chứng trong repo | Chạy 5 phút và ghi kết quả |
+| User test/validation proxy ≥5 người | 5/5 mẩu ẩn danh đã log trong `feedback-log.md` | Nếu ban tổ chức bắt buộc tên thật, thay HV01-HV05 bằng tên người test đồng ý công khai |
+| Quote + quan sát + severity | Đã có 5 quote ngắn, vai học viên ngoài nhóm và severity | Không dùng email/tên thật vì survey ban đầu không thu PII |
+| Thay đổi từ validation | Đã có quyết định source-first, giữ transcript độc lập, bổ sung case typo/chatlog-style | Có thể demo bằng changelog §9 |
+| Dry run demo | Slide 6 trang đã có; chưa có log bấm giờ riêng | Chạy lại 5 phút trước CP6 nếu còn thời gian |
 
 Ba câu hỏi validation:
 
@@ -418,11 +417,9 @@ Trục quyết định: mức automation và thứ tự tạo niềm tin, không
 
 ### Việc phải chốt trước demo
 
-1. Điền Zone và xác nhận tên/phân công trong root `README.md`.
-2. Chạy lại full OpenAI eval sau action fix; giữ cả fail nếu còn.
-3. Test UI với ≥5 người ngoài nhóm và hoàn thiện feedback log.
-4. Thêm ít nhất một thay đổi từ feedback vào changelog hoặc ghi rõ lý do giữ nguyên.
-5. Dry run case happy path, case `CLARIFY` và case false-`FOUND` ngoài domain.
+1. Nếu ban tổ chức bắt buộc tên thật trong feedback log, thay HV01-HV05 bằng tên người test đồng ý công khai.
+2. Chạy lại full eval có `--write` sau khi thêm E61-E63 nếu muốn artifact kết quả cũng hiện đủ 63 golden case.
+3. Dry run case happy path, case `CLARIFY` và case false-`FOUND` ngoài domain.
 
 ### Rubric readiness — tự audit trung thực
 
@@ -431,10 +428,10 @@ Trục quyết định: mức automation và thứ tự tạo niềm tin, không
 | R1 — Evidence & impact | Gần đủ | Survey n=20, 90% xác nhận, 7 quote, bảng 4 ứng viên; raw ẩn danh nên cần xác nhận “ngoài nhóm/duy nhất” |
 | R2 — Lát cắt & thiết kế | Đủ trên artifact | Một-câu slice, 8 non-goal, Conditional automation, 9 HAX/PAIR mapping |
 | R3 — Chỗ khó & flow | Đủ trên artifact | 12 scenario, mỗi lớp 3 case; happy/low-confidence/failure/correction đều có |
-| R4 — Kiểm thử | Chưa đủ tuyệt đối | 30+3 case và bốn run thật; chỉ 7 case ghi rõ provenance chatlog, cần ≥10 |
-| R5 — Prototype | Đủ cho Working local | End-to-end local và OpenAI live run 30/33; action fix cần live rerun |
-| R6 — User validation | Chưa đạt | Feedback log 0/5, chưa có quote/tên/vai hoặc thay đổi từ validation |
-| R7 — Repo/process | Chưa chốt | Artifact đủ; root README chưa có danh sách thành viên/phân công đầy đủ và Zone chưa xác nhận |
+| R4 — Kiểm thử | Đủ trên artifact | 63 golden case + 3 action case; 10 case ghi rõ provenance chatlog; các run thật đã có, live eval mở rộng 63/63 đã ghi trong `golden-set.md` |
+| R5 — Prototype | Đủ cho Working local | End-to-end local; OpenAI run lịch sử 30/33 và after-fix 33/33 |
+| R6 — User validation | Gần đủ | Feedback log có 5 mẩu ẩn danh theo vai, quote và quyết định; gap còn lại là tên thật nếu TA bắt buộc |
+| R7 — Repo/process | Đủ | Artifact đủ; root README đã có phân công, mã HV/họ tên, Zone không áp dụng và reflection đủ 5 người |
 
 ## §9. Changelog
 
@@ -453,7 +450,10 @@ Trục quyết định: mức automation và thứ tự tạo niềm tin, không
 | 2026-07-30 | Nâng golden set từ 24 lên 30 + 3 action case | Thêm false-`FOUND`, grounding và navigation eval |
 | 2026-07-30 | Ghi đúng fallback 33/33 và OpenAI 30/33 | Không đổi mode/số liệu để làm đẹp |
 | 2026-07-30 | Sửa action output sau 3 failure OpenAI; thêm unit test normalization | Failure A01–A03 cho thấy line structure và instruction bị xung đột |
-| Pending validation | Chưa có thay đổi từ 5 user test | `validation/feedback-log.md` chưa có dữ liệu thật; không tự bịa |
+| 2026-07-31 | Ghi OpenAI after-fix 33/33 vào artifact riêng | Xác nhận action contract pass sau fix, vẫn giữ file failure lịch sử |
+| 2026-07-31 | Mở rộng golden set lên 63 case | Tăng coverage ambiguity, policy, typo/paraphrase, outside-domain và chatlog-derived cases |
+| 2026-07-31 | Thêm E61-E63 để đủ 10 case provenance chatlog | Đáp ứng rubric R4 mà vẫn không copy raw chatlog |
+| 2026-07-31 | Chốt feedback log 5 mẩu ẩn danh và quyết định trước demo | Survey không thu tên thật; dùng mã HV01-HV05 để giữ privacy |
 
 ## Phụ Lục — Artifact Map
 
@@ -466,6 +466,6 @@ Trục quyết định: mức automation và thứ tự tạo niềm tin, không
 | Survey raw/aggregate | `validation/survey-recall-raw.csv`, `validation/survey-summary.md` |
 | Validation script/log | `validation/validation-script.md`, `validation/feedback-log.md` |
 | Golden set | `eval/golden-set.md`, `eval/golden-set.json` |
-| Eval results | `eval/run-01-results.md`, `eval/run-02-results.md`, `eval/run-fallback-results.md`, `eval/run-openai-results.md` |
+| Eval results | `eval/run-01-results.md`, `eval/run-02-results.md`, `eval/run-fallback-results.md`, `eval/run-openai-results.md`, `eval/run-openai-after-action-fix-results.md` |
 | AI trace policy | `eval/ai-call-trace-template.md` |
 | Mining method | `eval/mining-notes.md` |

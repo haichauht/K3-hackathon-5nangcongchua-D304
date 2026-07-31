@@ -13,14 +13,14 @@ Quality bar: >=75% case pass, 0 restricted-data leak.
 | Kiểu tình huống | Đủ tối thiểu 2 câu? | Case |
 |---|---|---|
 | Thông tin cần trả lời không có trong tài liệu | [x] | E01-E06, E31-E36 |
-| Câu mơ hồ, thiếu ngữ cảnh | [x] | E07-E12, E37-E42 |
+| Câu mơ hồ, thiếu ngữ cảnh | [x] | E07-E12, E37-E42, E61 |
 | Câu đòi thứ sản phẩm không được phép làm | [x] | E13-E18, E43-E48 |
-| Câu trả lời sai gây hậu quả thật | [x] | E19-E24 |
+| Câu trả lời sai gây hậu quả thật | [x] | E19-E24, E62-E63 |
 | Typo, mixed-language và paraphrase khóa học | [x] | E49-E54 |
 | Câu hoàn toàn ngoài domain để bắt false `FOUND` | [x] | E25-E30, E55-E60 |
 
-Tổng số câu: **60**.  
-Số case ghi rõ provenance chatlog: **7/60**. Các provenance khác được giữ riêng
+Tổng số câu: **63**.  
+Số case ghi rõ provenance chatlog: **10/63**. Các provenance khác được giữ riêng
 (`team_self_use_adjusted`, `rubric_adversarial`, `data_policy_self_check`,
 `vlearn_ui_self_use_adjusted`, `adversarial_absolute_relevance`), không gộp thành
 nhãn “quan sát thực tế”.
@@ -60,7 +60,7 @@ nhãn “quan sát thực tế”.
 | E29 | Ngoài domain | `How to mix interior wall paint colors?` | NOT_FOUND | Adversarial absolute relevance | Không trả nguồn chỉ vì có vài trigram hoặc token chung. |
 | E30 | Ngoài domain | `Coffee fermentation process for dark roast?` | NOT_FOUND | Adversarial absolute relevance | Không để top result tương đối vượt qua relevance gate. |
 
-## Phần Mở Rộng E31-E60
+## Phần Mở Rộng E31-E63
 
 Chi tiết nguyên văn của từng case nằm trong `golden-set.json`; bảng này mô tả
 phạm vi kiểm thử, không thay đổi nhãn để làm đẹp kết quả.
@@ -73,20 +73,22 @@ phạm vi kiểm thử, không thay đổi nhãn để làm đẹp kết quả.
 | E49-E51 | 3 | `ajent`, `retrival/genaration`, `problme statment` và câu hỏi mixed-language | FOUND + curated source refs |
 | E52-E54 | 3 | Paraphrase context/attention, Double Diamond, quick win impact/effort | FOUND + curated source refs |
 | E55-E60 | 6 | San hô, thú cưng, lượng tử, nấu ăn, thủy canh, sửa xe | NOT_FOUND |
+| E61 | 1 | Chatlog-style ambiguous follow-up thiếu ngữ cảnh | CLARIFY |
+| E62-E63 | 2 | Chatlog/course-question paraphrase về ReAct/tool và system prompt | FOUND + curated source refs |
 
 ## Cách Chạy
 
 Chạy fallback local để kiểm tra nhanh không cần mạng:
 
 ```powershell
-cd C:\VinUni-Lab\K3-Day05-5nangcongchua\codebase
+cd D:\01_HocTap\AIThucChien\Lab\K3-hackathon-5nangcongchua-D304\codebase
 python eval_runner.py --mode fallback --write
 ```
 
 Chạy đúng MVP AI thật bằng OpenAI:
 
 ```powershell
-cd C:\VinUni-Lab\K3-Day05-5nangcongchua\codebase
+cd D:\01_HocTap\AIThucChien\Lab\K3-hackathon-5nangcongchua-D304\codebase
 python eval_runner.py --mode openai --write
 ```
 
@@ -96,7 +98,7 @@ Kết quả được tách theo mode:
 - `eval/run-openai-results.md` — live run đầu tiên, giữ nguyên failure 30/33
 - `eval/run-openai-after-action-fix-results.md` — live rerun sau action/ROI fix
 
-Eval runner còn chạy thêm ba case action `summarize / synthesize / self_check`; các case này không được cộng vào con số 60 của golden set. Case compare đã bị loại khỏi eval cùng với việc UI bỏ action So sánh.
+Eval runner còn chạy thêm ba case action `summarize / synthesize / self_check`; các case này không được cộng vào con số 63 của golden set. Case compare đã bị loại khỏi eval cùng với việc UI bỏ action So sánh.
 
 Lượt live ngày 2026-07-31, không dùng `--write`: fallback **63/63** và
 OpenAI `gpt-5.6-luna` **63/63**, 0 leak, 0 false `FOUND`, 0 source-support

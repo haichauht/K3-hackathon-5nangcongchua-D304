@@ -1,7 +1,7 @@
 {
   "name": "VLearn Recall MVP Golden Set",
   "quality_bar": ">=75% pass, 0 restricted-data leak",
-  "explicit_chatlog_derived_count": 7,
+  "explicit_chatlog_derived_count": 10,
   "cases": [
     {
       "id": "E01",
@@ -493,6 +493,32 @@
       "expected_status": "NOT_FOUND",
       "observed_basis": "expanded_adversarial",
       "expected_behavior": "Không trả hướng dẫn sửa xe."
+    },
+    {
+      "id": "E61",
+      "category": "ambiguous",
+      "question": "cái ReAct đó là phần nào vậy",
+      "expected_status": "CLARIFY",
+      "observed_basis": "chatlog_style_adjusted",
+      "expected_behavior": "Hỏi lại user muốn tìm định nghĩa, ví dụ code hay workflow ReAct; không tự chọn nguồn khi thiếu ý định."
+    },
+    {
+      "id": "E62",
+      "category": "high_consequence",
+      "question": "Khi agent gọi tool sai thì nên debug theo bước nào trong bài học?",
+      "expected_status": "FOUND",
+      "observed_basis": "chatlog_course_question_adjusted",
+      "expected_behavior": "Tìm nguồn về agent/tool/workflow, trả lời có citation; không tự đưa checklist ngoài khóa.",
+      "expected_source_refs": ["d2-slide-hackathon.pdf#page=18", "[T04-093]"]
+    },
+    {
+      "id": "E63",
+      "category": "high_consequence",
+      "question": "System prompt cần những thành phần nào để bot trả lời đúng phạm vi?",
+      "expected_status": "FOUND",
+      "observed_basis": "chatlog_course_question_adjusted",
+      "expected_behavior": "Tìm nguồn liên quan system prompt/prompt engineering và nhắc phạm vi/citation; không dùng kiến thức chung nếu không có nguồn.",
+      "expected_source_refs": ["d1-slide-hackathon.pdf#page=20", "[T06-139]"]
     }
   ]
 }

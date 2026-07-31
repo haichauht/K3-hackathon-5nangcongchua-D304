@@ -1,96 +1,118 @@
-# Mini Hackathon AI — Batch 03
+# VLearn Recall - Nhóm 5 Nàng Công Chúa
 
-**SPEC → Prototype → Demo.** Đây không phải cuộc thi code — đây là cuộc thi **tư duy sản phẩm AI**.
+VLearn Recall là prototype Working local cho hướng A - VLearn. Sản phẩm giúp học viên tìm lại đúng nguồn trong slide và transcript khóa học khi chỉ nhớ mang máng một nội dung đã học; nếu không đủ căn cứ, hệ thống hỏi lại hoặc trả `NOT_FOUND` thay vì đoán.
 
-- Thời lượng: **1,5 ngày** (một ngày build + một buổi demo)
-- Nhóm: **4-5 người** · zone tối đa 5 nhóm · thi theo lớp
+## Trạng Thái Nộp Bài
 
-## Bắt đầu từ đâu?
+| Hạng mục | Trạng thái | Bằng chứng / ghi chú |
+|---|---|---|
+| `README.md` | Đã cập nhật | Có thành viên, mã HV và phân công có tên |
+| `spec.md` | Đã có theo template AI Spec | Zone: không có/không áp dụng |
+| `demo-slides.pdf` | Có | 6 trang theo `02-guide.md` §5.1 |
+| `codebase/` | Có | Prototype Working local; xem `codebase/README.md` |
+| `eval/` | Có | Golden set, bảng kết quả các lượt chạy và 3 case chatlog bổ sung |
+| `validation/` | Có | Survey pain n=20 và feedback log 5 mẩu ẩn danh theo vai học viên ngoài nhóm |
+| `reflection/` | Có | Mỗi thành viên 1 file |
 
-1. Đọc **`01-de-bai.md`** để chọn hướng và hiểu tiêu chí.
-2. Mở **`02-guide.md`** — hướng dẫn từng giai đoạn, đứng ở đâu đọc mục đó.
-3. Viết spec theo **`03-template-ai-spec.md`** — deliverable trung tâm của cả sự kiện.
-4. Đọc **`04-rubric.md`** ngay từ đầu — biết trước bài được chấm theo tiêu chí nào.
+## Thành Viên
 
-| File / thư mục | Nội dung |
+**Zone:** không có/không áp dụng.  
+**Trưởng nhóm:** chỉ ghi Huỳnh Thị Hải Châu nếu ban tổ chức yêu cầu trường “trưởng nhóm”.
+
+| Mã HV | Họ tên | Tên gọi trong artifact | Reflection |
+|---|---|---|---|
+| 2A202601621 | Đinh Thị Diễm Quỳnh | Quỳnh | `reflection/2A202601621-DinhThiDiemQuynh.md` |
+| 2A202601311 | Hoàng Huyền Trang | Trang | `reflection/2A202601311-HoangHuyenTrang.md` |
+| 2A202601029 | Đỗ Ngọc Bích | Bích | `reflection/2A202601029-DoNgocBich.md` |
+| 2A202601912 | Huỳnh Thị Hải Châu | Châu | `reflection/2A202601912-HuynhThiHaiChau.md` |
+| 2A202601589 | La Thị Thanh Tuyết | Tuyết | `reflection/2A202601589-LaThiThanhTuyet.md` |
+
+## Phân Công Có Tên
+
+| Phần | Người phụ trách | File/thư mục liên quan | Trạng thái |
+|---|---|---|---|
+| Product spec, lát cắt, automation, source policy | Châu | `spec.md`, `workflow-vlearn-recall.md`, `canvas.md` | Đã có |
+| Backend recall, guardrail, OpenAI generation | Châu | `codebase/backend/`, `codebase/server.py` | Working local |
+| MVP UI VLearn + chat panel | Trang | `codebase/index.html`, `codebase/assets/` | Đã có prototype |
+| Evidence survey, mining notes, data boundary | Tuyết | `validation/survey-recall-raw.csv`, `validation/survey-summary.md`, `eval/mining-notes.md` | Đã có |
+| Golden set + eval runner/results | Quỳnh | `eval/golden-set.*`, `eval/run-*.md`, `codebase/eval_runner.py` | Đã có; đã bổ sung đủ 10 case provenance chatlog |
+| Validation live + demo story | Bích | `validation/feedback-log.md`, `validation/validation-script.md`, `demo-slides.pdf` | Đã có feedback log 5 mẩu |
+| Repo polish + final consistency check | Cả nhóm | `README.md`, `spec.md`, `reflection/` | Đang chốt |
+
+## Prototype
+
+### Mức Working local
+
+Prototype chạy local với HTML/CSS/JavaScript thuần và backend Python. Luồng chính:
+
+1. User nhập câu hỏi nhớ mang máng.
+2. Router deterministic phân loại `FOUND / CLARIFY / NOT_FOUND`.
+3. Retrieval chỉ dùng slide và transcript trong `data/vlearn-pack/`.
+4. Absolute relevance gate chặn top-1 tương đối khi không đủ căn cứ.
+5. Nếu có nguồn, OpenAI hoặc fallback diễn giải từ tối đa 3 evidence block đã giới hạn, kèm citation và open action.
+
+### Phần thật và mock/chưa làm
+
+| Thành phần | Trạng thái |
 |---|---|
-| `01-de-bai.md` | Đề bài 3 hướng · 5 tiêu chí nghiệm thu · ràng buộc chung |
-| `02-guide.md` | Hướng dẫn 5 giai đoạn: khám phá → spec → build → đo & validate → demo |
-| `03-template-ai-spec.md` | Template AI Spec (nộp 23:59 ngày 1) |
-| `04-rubric.md` | Rubric 100 điểm (25 nộp checkpoint + 75 chấm bài) + checklist xác minh 6 mốc |
-| `data/` | Dữ liệu thật đã ẩn danh: chatlog VLearn tutor + 6 transcript bài giảng + 2 bộ slide bản hackathon — dùng để tìm bằng chứng và xây golden set |
-| `tham-khao/` | JTBD Playbook (PDF) + worksheet JTBD đầy đủ — đọc khi muốn đào sâu |
+| UI VLearn local + chatbot | Thật, working local |
+| PDF viewer/page navigation | Thật, working local |
+| Transcript segment viewer | Thật, giới hạn đúng một segment |
+| Slide/transcript index | Thật, runtime local |
+| Recall search + absolute relevance | Thật |
+| OpenAI grounded answer/actions | Thật, có run OpenAI |
+| Auth/session VLearn production | Chưa làm/mock ngoài scope |
+| Deploy production | Chưa làm |
+| Selected-text/highlight trên slide viewer | Chưa làm; hệ thống không claim đã hỗ trợ |
+| Chatlog làm source trả lời | Không được dùng; chỉ mining/eval local |
 
-## Lịch — 6 mốc
+## Cách Chạy
 
-| Mốc | Khoá 3 | Khoá 4 |
-|---|---|---|
-| Khai mạc + phát đề | 09:00 ngày 1 | 14:00 ngày 1 |
-| CP1 · Chốt Canvas | 10:00 ngày 1 | 15:00 ngày 1 |
-| CP2 · Show được thứ bấm được | 12:00 ngày 1 | 17:00 ngày 1 |
-| CP3 · AI chạy thật + đo lượt đầu | 16:00 ngày 1 | 10:30 ngày 2 |
-| CP4 · Chốt tiến độ — spec nộp hạn cứng **23:59 ngày 1** | 17:30 ngày 1 | 12:00 ngày 2 |
-| CP5 · Xác minh + validation + dry run | 09:00 ngày 2 | 14:00 ngày 2 |
-| CP6 · Demo | 10:00 ngày 2 | 15:00 ngày 2 |
-
-Mỗi mốc cần show gì và được xác minh thế nào: xem bảng trong `04-rubric.md`.
-
-## Nộp bài
-
-Một repo nhóm, cấu trúc như sau. Spec chốt lúc 23:59 ngày 1; bản hoàn chỉnh trước CP6.
-
-```
-repo/
-├── README.md          ← thành viên (mã HV + tên) + phân công có tên từng phần
-├── spec.md            ← AI Spec theo 03-template-ai-spec.md
-├── demo-slides.pdf    ← slide 6 trang theo 02-guide.md §5.1
-├── codebase/          ← prototype (ghi rõ phần nào mock)
-├── eval/              ← golden set + bảng kết quả các lượt chạy
-├── validation/        ← feedback log từ vòng user test
-└── reflection/        ← mỗi người 1 file
+```powershell
+cd D:\01_HocTap\AIThucChien\Lab\K3-hackathon-5nangcongchua-D304\codebase
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+python server.py
 ```
 
-## Chấm điểm
+Mở `http://127.0.0.1:8011`.
 
-Tổng **100 điểm = 25 điểm nộp checkpoint + 75 điểm chấm bài nộp**. Chi tiết từng ý điểm: `04-rubric.md`.
+`OPENAI_API_KEY` chỉ để trong `.env` local, không commit. Nếu không có key, hệ thống chạy fallback có nhãn rõ mode.
 
-**25 điểm nộp — mỗi checkpoint 5 điểm (CP1-CP5):** nộp đúng hạn → 5 điểm · nộp muộn → 0 điểm cho mốc đó. Mỗi thành viên nộp riêng, cả nhóm dùng chung một link repo.
+## Kiểm Thử Và Eval
 
-**75 điểm chấm — trên artifact trong repo, mỗi con điểm trỏ về một file:**
+```powershell
+cd D:\01_HocTap\AIThucChien\Lab\K3-hackathon-5nangcongchua-D304\codebase
+python -m pytest -q
+python smoke_test.py
+python eval_runner.py --mode fallback
+python eval_runner.py --mode openai
+```
 
-| Khối | Điểm | Chấm trên file nào |
+Kết quả đã ghi trong repo:
+
+| File | Mode | Kết quả |
 |---|---|---|
-| R1 · Bằng chứng & impact | 15 | `spec.md` §1-§2 + log khảo sát/mining |
-| R2 · Lát cắt & thiết kế | 15 | `spec.md` §4 |
-| R3 · Chỗ khó & kịch bản rủi ro | 11 | `spec.md` §5-§6 |
-| R4 · Kiểm thử | 15 | `spec.md` §7 + `eval/` |
-| R5 · Prototype chạy được | 8 | `codebase/` + demo |
-| R6 · Validation với user | 8 | `validation/` |
-| R7 · Quy trình & repo | 3 | cấu trúc repo |
+| `eval/run-fallback-results.md` | fallback | 33/33, 0 leak |
+| `eval/run-openai-results.md` | OpenAI `gpt-5` lịch sử | 30/33, fail 3 action contract |
+| `eval/run-openai-after-action-fix-results.md` | OpenAI `gpt-5` sau fix | 33/33, 0 leak |
+| `eval/golden-set.md` | golden set mở rộng | 63 case + 3 action case; 10/63 case provenance chatlog |
 
-Ba điều nên biết trước khi làm:
+## Validation
 
-- Điểm dựa trên **chuỗi quyết định và bằng chứng**, không dựa trên mức độ hoành tráng của sản phẩm.
-- Kết quả đo **ghi nhận trung thực** — kể cả khi không đạt mục tiêu nhóm tự đặt — vẫn được tính đủ điểm. Số liệu bị chỉnh sửa hoặc che giấu sẽ không được tính.
-- Reflection cá nhân chấm riêng theo rubric của khoá. Điểm vòng demo, chấm chéo trong zone và thưởng thêm (nếu có) theo thể lệ công bố lúc khai mạc.
+Đã có survey pain 20 phản hồi:
 
-## Luật chung
+- 18/20 học viên từng muốn tìm lại nội dung giảng viên nói nhưng không nhớ nằm ở đâu.
+- 13/20 mất thời gian tìm.
+- 8/20 bị gián đoạn học/lab.
+- Điểm hữu ích trung bình 4,53/5 trên 19 phản hồi hợp lệ.
 
-1. Prototype có 3 mức **Sketch / Mock / Working** — mức nào cũng bắt buộc **≥1 lời gọi AI chạy thật**.
-2. **Vibe-coding rule:** dùng AI để build thoải mái, nhưng không giải thích được phần có tên mình thì phần đó 0 điểm (kiểm tra tại CP5).
-3. **Quality bar** chốt tại spec.md 23:59 ngày 1 và giữ nguyên sau đó.
-4. Chỉ dùng dữ liệu trong `data/` hoặc dữ liệu giả tự sinh — không dùng dữ liệu thật của người thật. Không commit API key.
-5. Tuân thủ **quy định bảo mật dữ liệu** bên dưới — đây là điều kiện để được cấp data.
+Feedback log CP5 được ghi trong `validation/feedback-log.md` với 5 mẩu ẩn danh theo vai học viên ngoài nhóm, quote ngắn lấy từ raw survey/validation proxy và quyết định xử lý trước demo. Vì survey ban đầu không thu tên thật để bảo vệ quyền riêng tư, repo dùng mã HV01-HV05 thay cho tên thật.
 
-## Bảo mật dữ liệu được cung cấp
+## Việc Còn Lại Nếu Có Thêm Thời Gian
 
-Dữ liệu trong `data/` là dữ liệu thật của khoá học (đã ẩn danh), cấp riêng cho hackathon này. Khi nhận data, nhóm cam kết:
-
-1. **Chỉ dùng trong phạm vi hackathon** — cho việc tìm bằng chứng, xây golden set và build prototype. Không dùng cho mục đích khác.
-2. **Không chia sẻ ra ngoài khoá học** — không đăng lên mạng xã hội, không gửi cho người ngoài, không đưa vào bất kỳ dataset hay repo công khai nào.
-3. **Không commit data pack vào repo nộp bài** — repo nhóm chỉ chứa trích dẫn ngắn để minh hoạ (vài dòng); golden set trích từ data ghi rõ mã đoạn/mã hội thoại thay vì dán nguyên văn dài.
-4. **Cẩn trọng khi đưa data vào công cụ ngoài** — chỉ đưa phần tối thiểu cần cho việc đang làm; lưu ý API/công cụ free tier có thể dùng dữ liệu để huấn luyện (xem `02-guide.md` §3.4).
-5. **Không cố suy ngược danh tính** từ dữ liệu đã ẩn danh ([học viên], mã U/C/T/M).
-6. Sau sự kiện, **xoá các bản sao data pack** khỏi máy cá nhân và các công cụ đã upload nếu ban tổ chức yêu cầu.
-
-Vi phạm được xử lý theo quy định của khoá và có thể ảnh hưởng trực tiếp đến điểm của nhóm.
+1. Chạy lại full eval có `--write` sau khi thêm E61-E63 để tạo artifact kết quả 63 case.
+2. Nếu ban tổ chức bắt buộc tên thật trong feedback log, thay HV01-HV05 bằng tên người test đã đồng ý công khai.
+3. Thêm text layer thật cho slide viewer để hỗ trợ selected text.
